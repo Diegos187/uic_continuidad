@@ -1,0 +1,10 @@
+# Directorios de dependencias
+/vendor/
+
+# Archivos de configuración sensibles
+.env
+.env.*
+
+# Otros archivos generados (opcional, pero recomendado)
+/storage/
+/public/build/

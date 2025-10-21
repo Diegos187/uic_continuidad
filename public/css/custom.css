@@ -1,0 +1,27 @@
+body {
+    background-color: #f4f6f9;
+}
+
+.navbar {
+    margin-bottom: 20px;
+}
+
+.card {
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.footer {
+    margin-top: 20px;
+    padding: 20px 0;
+    background-color: #f8f9fa;
+}
+
+/* Estilos adicionales para mejorar la experiencia de usuario */
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0,0,0,0.05);
+}
