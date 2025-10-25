@@ -2,6 +2,7 @@
 session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/MatrizCoherencia.php';
+require_once '../../src/models/VersionMatriz.php';
 require_once '../../src/models/Asignatura.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../includes/functions.php';
@@ -13,6 +14,7 @@ $conexion = $db->conectar();
 $asignatura = new Asignatura($conexion);
 $carrera = new Carrera($conexion);
 $matriz = new MatrizCoherencia($conexion);
+$versiones = new VersionMatriz($conexion);
 
 $error = '';
 $success = '';
@@ -23,13 +25,24 @@ $asignaturasTodas = $asignatura->obtenerTodas();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $carrera_id = isset($_POST['carrera_id']) ? (int)limpiarDatos($_POST['carrera_id']) : null;
+    $descripcion_version = isset($_POST['descripcion_version']) ? trim(limpiarDatos($_POST['descripcion_version'])) : '';
     $filasPost = isset($_POST['filas']) && is_array($_POST['filas']) ? $_POST['filas'] : [];
 
     if (!$carrera_id) {
         $error = 'Debe seleccionar una carrera.';
+    } elseif ($descripcion_version === '') {
+        $error = 'Debe ingresar un nombre o descripción para la matriz.';
     } elseif (empty($filasPost)) {
         $error = 'Debe agregar al menos una fila a la matriz.';
     } else {
+        // Crear versión de matriz para agrupar las filas
+        $version_id = $versiones->crear($carrera_id, $descripcion_version);
+        if (!$version_id) {
+            $error = 'No se pudo crear la versión de la matriz.';
+        }
+    }
+
+    if (empty($error)) {
         $filas = [];
         foreach ($filasPost as $fila) {
             // Saltar filas completamente vacías
@@ -57,7 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 'area_formacion_id' => isset($fila['area_formacion_id']) ? limpiarDatos($fila['area_formacion_id']) : null,
                 // Usar el perfil seleccionado arriba (si existe)
                 'perfil_egreso_id' => $perfil_superior ?: (isset($fila['perfil_egreso_id']) ? limpiarDatos($fila['perfil_egreso_id']) : null),
-                'version_id' => isset($fila['version_id']) ? limpiarDatos($fila['version_id']) : null,
+                // Asignar la versión recién creada
+                'version_id' => $version_id,
                 'dominio' => isset($fila['dominio']) ? limpiarDatos($fila['dominio']) : null,
                 'competencia' => isset($fila['competencia']) ? limpiarDatos($fila['competencia']) : null,
                 'resultado_aprendizaje' => isset($fila['resultado_aprendizaje']) ? limpiarDatos($fila['resultado_aprendizaje']) : null,
@@ -87,7 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $ids[] = $id;
             }
             if (empty($error)) {
-                $success = count($ids) . ' fila(s) de la matriz creadas exitosamente.';
+                // Redirigir al listado filtrado por carrera
+                header('Location: matrices.php?carrera_id=' . urlencode((string)$carrera_id));
+                exit;
             }
         }
     }
@@ -137,6 +153,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         <option value="">Seleccione un perfil</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="descripcion_version" class="form-label">Nombre/Descripción de la matriz</label>
+                                <input type="text" class="form-control" id="descripcion_version" name="descripcion_version" placeholder="Ej: Matriz cohorte 2026 - Plan diurno" required />
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-2">

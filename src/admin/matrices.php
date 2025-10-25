@@ -3,6 +3,7 @@ session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/MatrizCoherencia.php';
 require_once '../../src/models/Asignatura.php';
+require_once '../../src/models/VersionMatriz.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../includes/functions.php';
 
@@ -13,13 +14,14 @@ $conexion = $db->conectar();
 $matriz = new MatrizCoherencia($conexion);
 $asignatura = new Asignatura($conexion);
 $carrera = new Carrera($conexion);
+$versionModel = new VersionMatriz($conexion);
 
 $carreras = $carrera->obtenerTodas();
 
-$matrices = [];
+$versiones = [];
 
 if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
-    $matrices = $matriz->obtenerPorCarrera((int)$_GET['carrera_id']);
+    $versiones = $versionModel->obtenerPorCarrera((int)$_GET['carrera_id']);
 }
 ?>
 <!DOCTYPE html>
@@ -65,20 +67,15 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
             </div>
         </div>
 
-        <?php if (!empty($matrices)): ?>
-            <?php foreach ($matrices as $matrizRow): ?>
+        <?php if (!empty($versiones)): ?>
+            <?php foreach ($versiones as $version): ?>
                 <div class="card mb-3">
                     <div class="card-body">
                         <div class="row">
                             <div class="col">
-                                <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <span class="badge text-bg-secondary"><?php echo htmlspecialchars($matrizRow['asignatura_nombre'] ?? ''); ?></span>
-                                    <?php if (!empty($matrizRow['area_formacion_nombre'])): ?>
-                                        <span class="badge text-bg-info"><?php echo htmlspecialchars($matrizRow['area_formacion_nombre']); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                                <h5 class="card-title mt-2">Dominio: <?php echo htmlspecialchars($matrizRow['dominio']); ?></h5>
-                                <h6 class="card-subtitle mb-2 text-muted">Competencia: <?php echo htmlspecialchars($matrizRow['competencia']); ?></h6>
+                                <h5 class="card-title">Matriz: <?php echo htmlspecialchars($version['descripcion'] ?: ('Versión ' . (int)$version['numero_version'])); ?></h5>
+                                <h6 class="card-subtitle mb-2 text-muted">Versión #<?php echo (int)$version['numero_version']; ?> — <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($version['fecha_creacion']))); ?></h6>
+                                <span class="badge text-bg-secondary">Filas: <?php echo (int)($version['filas_count'] ?? 0); ?></span>
                             </div>
                             <div class="col-auto">
                                 <div class="btn-group" role="group">
@@ -96,9 +93,7 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                 </div>
                             </div>
                         </div>
-                        <p class="mt-3 mb-1"><strong>Actividad Curricular:</strong> <?php echo htmlspecialchars($matrizRow['asignatura_nombre'] ?? ''); ?></p>
-                        <p class="mt-1 mb-1"><strong>Resultados de Aprendizaje:</strong> <?php echo nl2br(htmlspecialchars($matrizRow['resultado_aprendizaje'])); ?></p>
-                        <p class="mt-1"><strong>Criterios de logro:</strong> <?php echo nl2br(htmlspecialchars($matrizRow['criterios_logro'])); ?></p>
+                        <!-- Las filas se mantienen asociadas internamente a la versión; se mostrarán en detalle más adelante -->
                     </div>
                 </div>
             <?php endforeach; ?>
