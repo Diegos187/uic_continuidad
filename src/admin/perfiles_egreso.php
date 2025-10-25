@@ -79,7 +79,7 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
                                     <td><?php echo htmlspecialchars($p['created_at']); ?></td>
                                     <td>
                                         <a href="editar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>" class="btn btn-sm btn-warning">Editar</a>
-                                        <a href="eliminar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>" class="btn btn-sm btn-danger" onclick="return confirm('¿Desea eliminar este perfil de egreso?');">Eliminar</a>
+                                        <a href="eliminar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Al eliminar este perfil de egreso, también se eliminarán todas las matrices de coherencia asociadas. ¿Desea continuar?');">Eliminar</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

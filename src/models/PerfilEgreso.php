@@ -43,4 +43,11 @@ class PerfilEgreso
         $stmt->bindParam(':descripcion', $descripcion, PDO::PARAM_STR);
         return $stmt->execute();
     }
+
+    public function eliminar($id)
+    {
+        $stmt = $this->conexion->prepare("DELETE FROM " . $this->tabla . " WHERE id = :id");
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        return $stmt->execute();
+    }
 }
