@@ -84,7 +84,7 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                 </div>
                                 <div class="btn-group ms-2" role="group">
                                     <a href="#" class="btn btn-sm btn-outline-primary" title="Descargar Word (próximamente)">Word</a>
-                                    <a href="#" class="btn btn-sm btn-outline-success" title="Descargar Excel (próximamente)">Excel</a>
+                                    <a href="generar_matriz_excel.php?id=<?php echo (int)$version['id']; ?>" class="btn btn-sm btn-outline-success" title="Descargar Excel">Excel</a>
                                     <a href="#" class="btn btn-sm btn-outline-danger" title="Descargar PDF (próximamente)">PDF</a>
                                 </div>
                                 <div class="btn-group ms-2" role="group">

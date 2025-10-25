@@ -25,19 +25,46 @@ class MatrizCoherencia
 
             $stmt = $this->conexion->prepare($query);
 
-            $stmt->bindParam(':asignatura_id', $datos['asignatura_id'], PDO::PARAM_INT);
-            $stmt->bindValue(':area_formacion_id', $datos['area_formacion_id'] ?? null, $datos['area_formacion_id'] !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-            $stmt->bindValue(':perfil_egreso_id', $datos['perfil_egreso_id'] ?? null, $datos['perfil_egreso_id'] !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-            $stmt->bindValue(':version_id', $datos['version_id'] ?? null, $datos['version_id'] !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-            $stmt->bindParam(':dominio', $datos['dominio']);
-            $stmt->bindParam(':competencia', $datos['competencia']);
-            $stmt->bindParam(':resultado_aprendizaje', $datos['resultado_aprendizaje']);
-            $stmt->bindParam(':criterios_logro', $datos['criterios_logro']);
-            $stmt->bindParam(':contenidos', $datos['contenidos']);
-            $stmt->bindParam(':bibliografia', $datos['bibliografia']);
-            $stmt->bindParam(':metodologias', $datos['metodologias']);
-            $stmt->bindParam(':estrategias', $datos['estrategias']);
-            $stmt->bindParam(':sct_chile', $datos['sct_chile']);
+            // Copiar a variables locales para usar bindParam adecuadamente o bindValue para valores directos
+            $asignatura_id = (int)($datos['asignatura_id'] ?? 0);
+            $area_formacion_id = isset($datos['area_formacion_id']) && $datos['area_formacion_id'] !== '' ? (int)$datos['area_formacion_id'] : null;
+            $perfil_egreso_id = isset($datos['perfil_egreso_id']) && $datos['perfil_egreso_id'] !== '' ? (int)$datos['perfil_egreso_id'] : null;
+            $version_id = isset($datos['version_id']) && $datos['version_id'] !== '' ? (int)$datos['version_id'] : null;
+            $dominio = $datos['dominio'] ?? null;
+            $competencia = $datos['competencia'] ?? null;
+            $resultado_aprendizaje = $datos['resultado_aprendizaje'] ?? null;
+            $criterios_logro = $datos['criterios_logro'] ?? null;
+            $contenidos = $datos['contenidos'] ?? null;
+            $bibliografia = $datos['bibliografia'] ?? null;
+            $metodologias = $datos['metodologias'] ?? null;
+            $estrategias = $datos['estrategias'] ?? null;
+            $sct_chile = isset($datos['sct_chile']) && $datos['sct_chile'] !== '' ? (int)$datos['sct_chile'] : 0;
+
+            $stmt->bindParam(':asignatura_id', $asignatura_id, PDO::PARAM_INT);
+            if ($area_formacion_id === null) {
+                $stmt->bindValue(':area_formacion_id', null, PDO::PARAM_NULL);
+            } else {
+                $stmt->bindValue(':area_formacion_id', $area_formacion_id, PDO::PARAM_INT);
+            }
+            if ($perfil_egreso_id === null) {
+                $stmt->bindValue(':perfil_egreso_id', null, PDO::PARAM_NULL);
+            } else {
+                $stmt->bindValue(':perfil_egreso_id', $perfil_egreso_id, PDO::PARAM_INT);
+            }
+            if ($version_id === null) {
+                $stmt->bindValue(':version_id', null, PDO::PARAM_NULL);
+            } else {
+                $stmt->bindValue(':version_id', $version_id, PDO::PARAM_INT);
+            }
+            $stmt->bindValue(':dominio', $dominio);
+            $stmt->bindValue(':competencia', $competencia);
+            $stmt->bindValue(':resultado_aprendizaje', $resultado_aprendizaje);
+            $stmt->bindValue(':criterios_logro', $criterios_logro);
+            $stmt->bindValue(':contenidos', $contenidos);
+            $stmt->bindValue(':bibliografia', $bibliografia);
+            $stmt->bindValue(':metodologias', $metodologias);
+            $stmt->bindValue(':estrategias', $estrategias);
+            $stmt->bindValue(':sct_chile', $sct_chile, PDO::PARAM_INT);
 
             if ($stmt->execute()) {
                 return $this->conexion->lastInsertId();
