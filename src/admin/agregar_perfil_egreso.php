@@ -26,12 +26,9 @@ if (!$carrera) {
     redirigir('carreras.php');
 }
 
-// Cargar áreas asociadas a la carrera; si no hay, mostrar todas como fallback
+// Cargar todas las áreas globales para permitir reutilización inmediata; la asociación a carrera se hace al guardar
 try {
-    $areas = $areaModel->listarPorCarrera($carreraId);
-    if (!$areas || count($areas) === 0) {
-        $areas = $areaModel->obtenerTodas();
-    }
+    $areas = $areaModel->obtenerTodas();
 } catch (Exception $e) {
     $areas = [];
 }

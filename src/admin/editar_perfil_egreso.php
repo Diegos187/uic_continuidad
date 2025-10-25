@@ -30,12 +30,9 @@ if (!$carrera || !$perfil || (int)$perfil['carrera_id'] !== $carreraId) {
     exit;
 }
 
-// Áreas disponibles: primero las asociadas a la carrera; si no hay, todas.
+// Áreas disponibles: cargar todas las áreas globales; la asociación con la carrera se hace al guardar si se usan
 try {
-    $areas = $areaModel->listarPorCarrera($carreraId);
-    if (!$areas || count($areas) === 0) {
-        $areas = $areaModel->obtenerTodas();
-    }
+    $areas = $areaModel->obtenerTodas();
 } catch (Exception $e) {
     $areas = [];
 }

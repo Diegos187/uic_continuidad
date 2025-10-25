@@ -13,15 +13,15 @@ class MatrizCoherencia
     {
         try {
             $query = "INSERT INTO " . $this->tabla . " 
-            (asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
-            dominio, competencia, resultado_aprendizaje, 
-            actividad_curricular, criterios_logro, contenidos, bibliografia, 
-            metodologias, estrategias, sct_chile) 
+        (asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
+        dominio, competencia, resultado_aprendizaje,
+        criterios_logro, contenidos, bibliografia,
+        metodologias, estrategias, sct_chile) 
                     VALUES 
-            (:asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
-            :dominio, :competencia, :resultado_aprendizaje,
-            :actividad_curricular, :criterios_logro, :contenidos, :bibliografia,
-            :metodologias, :estrategias, :sct_chile)";
+        (:asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
+        :dominio, :competencia, :resultado_aprendizaje,
+        :criterios_logro, :contenidos, :bibliografia,
+        :metodologias, :estrategias, :sct_chile)";
 
             $stmt = $this->conexion->prepare($query);
 
@@ -32,7 +32,6 @@ class MatrizCoherencia
             $stmt->bindParam(':dominio', $datos['dominio']);
             $stmt->bindParam(':competencia', $datos['competencia']);
             $stmt->bindParam(':resultado_aprendizaje', $datos['resultado_aprendizaje']);
-            $stmt->bindParam(':actividad_curricular', $datos['actividad_curricular']);
             $stmt->bindParam(':criterios_logro', $datos['criterios_logro']);
             $stmt->bindParam(':contenidos', $datos['contenidos']);
             $stmt->bindParam(':bibliografia', $datos['bibliografia']);
@@ -55,7 +54,7 @@ class MatrizCoherencia
      * @param int $asignatura_id ID de la carrera/asignatura a asociar
      * @param array $filas Array de arrays con llaves:
      *  area_formacion_id, perfil_egreso_id, version_id, dominio, competencia,
-     *  resultado_aprendizaje, actividad_curricular, criterios_logro,
+     *  resultado_aprendizaje, criterios_logro,
      *  contenidos, bibliografia, metodologias, estrategias, sct_chile
      * @return array|false Lista de IDs insertados o false en caso de error
      */
@@ -66,13 +65,13 @@ class MatrizCoherencia
 
             $query = "INSERT INTO " . $this->tabla . " 
                     (asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
-                    dominio, competencia, resultado_aprendizaje, 
-                    actividad_curricular, criterios_logro, contenidos, bibliografia, 
+                    dominio, competencia, resultado_aprendizaje,
+                    criterios_logro, contenidos, bibliografia,
                     metodologias, estrategias, sct_chile) 
                     VALUES 
                     (:asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
                     :dominio, :competencia, :resultado_aprendizaje,
-                    :actividad_curricular, :criterios_logro, :contenidos, :bibliografia,
+                    :criterios_logro, :contenidos, :bibliografia,
                     :metodologias, :estrategias, :sct_chile)";
 
             $stmt = $this->conexion->prepare($query);
@@ -86,7 +85,6 @@ class MatrizCoherencia
                 $dominio = $fila['dominio'] ?? null;
                 $competencia = $fila['competencia'] ?? null;
                 $resultado_aprendizaje = $fila['resultado_aprendizaje'] ?? null;
-                $actividad_curricular = $fila['actividad_curricular'] ?? null;
                 $criterios_logro = $fila['criterios_logro'] ?? null;
                 $contenidos = $fila['contenidos'] ?? null;
                 $bibliografia = $fila['bibliografia'] ?? null;
@@ -113,7 +111,6 @@ class MatrizCoherencia
                 $stmt->bindValue(':dominio', $dominio);
                 $stmt->bindValue(':competencia', $competencia);
                 $stmt->bindValue(':resultado_aprendizaje', $resultado_aprendizaje);
-                $stmt->bindValue(':actividad_curricular', $actividad_curricular);
                 $stmt->bindValue(':criterios_logro', $criterios_logro);
                 $stmt->bindValue(':contenidos', $contenidos);
                 $stmt->bindValue(':bibliografia', $bibliografia);
@@ -152,14 +149,33 @@ class MatrizCoherencia
         }
     }
 
+    public function obtenerPorCarrera($carrera_id)
+    {
+        try {
+            $query = "SELECT mc.*, a.nombre AS asignatura_nombre, a.carrera_id,
+                             af.nombre AS area_formacion_nombre
+                      FROM " . $this->tabla . " mc
+                      JOIN asignaturas a ON a.id = mc.asignatura_id
+                      LEFT JOIN areas_formacion af ON af.id = mc.area_formacion_id
+                      WHERE a.carrera_id = :carrera_id
+                      ORDER BY mc.id DESC";
+            $stmt = $this->conexion->prepare($query);
+            $stmt->bindParam(':carrera_id', $carrera_id, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error al obtener matrices por carrera: " . $e->getMessage());
+            return [];
+        }
+    }
+
     public function actualizar($id, $datos)
     {
         try {
             $query = "UPDATE " . $this->tabla . " SET 
                     dominio = :dominio,
                     competencia = :competencia,
-                    resultado_aprendizaje = :resultado_aprendizaje,
-                    actividad_curricular = :actividad_curricular,
+            resultado_aprendizaje = :resultado_aprendizaje,
                     criterios_logro = :criterios_logro,
                     contenidos = :contenidos,
                     bibliografia = :bibliografia,
@@ -174,7 +190,6 @@ class MatrizCoherencia
             $stmt->bindParam(':dominio', $datos['dominio']);
             $stmt->bindParam(':competencia', $datos['competencia']);
             $stmt->bindParam(':resultado_aprendizaje', $datos['resultado_aprendizaje']);
-            $stmt->bindParam(':actividad_curricular', $datos['actividad_curricular']);
             $stmt->bindParam(':criterios_logro', $datos['criterios_logro']);
             $stmt->bindParam(':contenidos', $datos['contenidos']);
             $stmt->bindParam(':bibliografia', $datos['bibliografia']);

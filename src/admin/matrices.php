@@ -3,6 +3,7 @@ session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/MatrizCoherencia.php';
 require_once '../../src/models/Asignatura.php';
+require_once '../../src/models/VersionMatriz.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../includes/functions.php';
 
@@ -13,14 +14,14 @@ $conexion = $db->conectar();
 $matriz = new MatrizCoherencia($conexion);
 $asignatura = new Asignatura($conexion);
 $carrera = new Carrera($conexion);
+$versionModel = new VersionMatriz($conexion);
 
-$asignaturas = $asignatura->obtenerTodas();
 $carreras = $carrera->obtenerTodas();
 
-$matrices = [];
+$versiones = [];
 
-if (isset($_GET['asignatura_id'])) {
-    $matrices = $matriz->obtenerPorAsignatura($_GET['asignatura_id']);
+if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
+    $versiones = $versionModel->obtenerPorCarrera((int)$_GET['carrera_id']);
 }
 ?>
 <!DOCTYPE html>
@@ -50,12 +51,11 @@ if (isset($_GET['asignatura_id'])) {
             <div class="card-body">
                 <form method="GET" class="row g-3">
                     <div class="col-md-10">
-                        <select name="asignatura_id" class="form-select">
-                            <option value="">Seleccione una asignatura</option>
-                            <?php foreach ($asignaturas as $asig): ?>
-                                <option value="<?php echo $asig['id']; ?>"
-                                    <?php echo (isset($_GET['asignatura_id']) && $_GET['asignatura_id'] == $asig['id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($asig['nombre'] . ' — ' . $asig['nombre_carrera']); ?>
+                        <select name="carrera_id" class="form-select" required>
+                            <option value="">Seleccione una carrera</option>
+                            <?php foreach ($carreras as $carr): ?>
+                                <option value="<?php echo $carr['id']; ?>" <?php echo (isset($_GET['carrera_id']) && $_GET['carrera_id'] == $carr['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($carr['nombre']); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -67,39 +67,45 @@ if (isset($_GET['asignatura_id'])) {
             </div>
         </div>
 
-        <?php if (!empty($matrices)): ?>
-            <?php foreach ($matrices as $matriz): ?>
+        <?php if (!empty($versiones)): ?>
+            <?php foreach ($versiones as $version): ?>
                 <div class="card mb-3">
                     <div class="card-body">
                         <div class="row">
                             <div class="col">
-                                <h5 class="card-title">Dominio: <?php echo htmlspecialchars($matriz['dominio']); ?></h5>
-                                <h6 class="card-subtitle mb-2 text-muted">Competencia: <?php echo htmlspecialchars($matriz['competencia']); ?></h6>
+                                <h5 class="card-title">Matriz: <?php echo htmlspecialchars($version['descripcion'] ?: ('Versión ' . (int)$version['numero_version'])); ?></h5>
+                                <h6 class="card-subtitle mb-2 text-muted">Versión #<?php echo (int)$version['numero_version']; ?> — <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($version['fecha_creacion']))); ?></h6>
+                                <span class="badge text-bg-secondary">Filas: <?php echo (int)($version['filas_count'] ?? 0); ?></span>
                             </div>
                             <div class="col-auto">
-                                <a href="exportar_matriz.php?id=<?php echo $matriz['id']; ?>" class="btn btn-sm btn-success">Descargar PDF</a>
-                                <a href="editar_matriz.php?id=<?php echo $matriz['id']; ?>" class="btn btn-sm btn-warning">Editar</a>
-                                <button class="btn btn-sm btn-danger" onclick="confirmarEliminar(<?php echo $matriz['id']; ?>)">Eliminar</button>
+                                <div class="btn-group" role="group">
+                                    <a href="#" class="btn btn-sm btn-warning" title="Editar (próximamente)">Editar</a>
+                                    <button type="button" class="btn btn-sm btn-danger" title="Eliminar (próximamente)" disabled>Eliminar</button>
+                                </div>
+                                <div class="btn-group ms-2" role="group">
+                                    <a href="#" class="btn btn-sm btn-outline-primary" title="Descargar Word (próximamente)">Word</a>
+                                    <a href="#" class="btn btn-sm btn-outline-success" title="Descargar Excel (próximamente)">Excel</a>
+                                    <a href="#" class="btn btn-sm btn-outline-danger" title="Descargar PDF (próximamente)">PDF</a>
+                                </div>
+                                <div class="btn-group ms-2" role="group">
+                                    <a href="#" class="btn btn-sm btn-secondary" title="Historial de versiones (próximamente)">Historial de versiones</a>
+                                    <a href="#" class="btn btn-sm btn-primary" title="Nueva versión (próximamente)">Nueva versión</a>
+                                </div>
                             </div>
                         </div>
-                        <p class="mt-3"><strong>Resultados de Aprendizaje:</strong> <?php echo nl2br(htmlspecialchars($matriz['resultado_aprendizaje'])); ?></p>
-                        <p class="mt-3"><strong>Criterios de logro:</strong> <?php echo nl2br(htmlspecialchars($matriz['criterios_logro'])); ?></p>
+                        <!-- Las filas se mantienen asociadas internamente a la versión; se mostrarán en detalle más adelante -->
                     </div>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>
-            <div class="alert alert-info">No hay matrices de coherencia registradas para esta asignatura.</div>
+            <div class="alert alert-info">No hay matrices de coherencia registradas para esta carrera.</div>
         <?php endif; ?>
     </div>
 
     <?php include '../../includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function confirmarEliminar(id) {
-            if (confirm('¿Está seguro de eliminar esta matriz de coherencia?')) {
-                window.location.href = 'eliminar_matriz.php?id=' + id;
-            }
-        }
+        // Botones sin funcionalidad aún (placeholders)
     </script>
 </body>
 

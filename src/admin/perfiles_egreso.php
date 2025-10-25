@@ -79,7 +79,7 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
                                     <td><?php echo htmlspecialchars($p['created_at']); ?></td>
                                     <td>
                                         <a href="editar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>" class="btn btn-sm btn-warning">Editar</a>
-                                        <a href="eliminar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Al eliminar este perfil de egreso, también se eliminarán todas las matrices de coherencia asociadas. ¿Desea continuar?');">Eliminar</a>
+                                        <a href="eliminar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>" class="btn btn-sm btn-danger btn-delete-perfil" data-url="eliminar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>">Eliminar</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -92,6 +92,39 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
 
     <?php include '../../includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const links = document.querySelectorAll('.btn-delete-perfil');
+            links.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const url = this.getAttribute('data-url') || this.getAttribute('href');
+                    if (!url) return;
+                    if (typeof Swal === 'undefined') {
+                        // Fallback si no está SweetAlert2
+                        if (confirm('Al eliminar este perfil de egreso, también se eliminarán todas las matrices de coherencia asociadas. ¿Desea continuar?')) {
+                            window.location.href = url;
+                        }
+                        return;
+                    }
+                    Swal.fire({
+                        title: 'Eliminar perfil de egreso',
+                        html: 'Esta acción <b>eliminará también todas las matrices de coherencia</b> asociadas a este perfil. Esta operación no se puede deshacer.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: 'Sí, eliminar',
+                        cancelButtonText: 'Cancelar'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = url;
+                        }
+                    });
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>
