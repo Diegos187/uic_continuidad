@@ -4,6 +4,7 @@ require_once '../../config/database.php';
 require_once '../../src/models/MatrizCoherencia.php';
 require_once '../../src/models/Asignatura.php';
 require_once '../../src/models/VersionMatriz.php';
+require_once '../../src/models/Matriz.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../includes/functions.php';
 
@@ -15,13 +16,14 @@ $matriz = new MatrizCoherencia($conexion);
 $asignatura = new Asignatura($conexion);
 $carrera = new Carrera($conexion);
 $versionModel = new VersionMatriz($conexion);
+$matrizModel = new Matriz($conexion);
 
 $carreras = $carrera->obtenerTodas();
 
-$versiones = [];
+$matricesLista = [];
 
 if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
-    $versiones = $versionModel->obtenerPorCarrera((int)$_GET['carrera_id']);
+    $matricesLista = $matrizModel->obtenerPorCarrera((int)$_GET['carrera_id']);
 }
 ?>
 <!DOCTYPE html>
@@ -67,15 +69,15 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
             </div>
         </div>
 
-        <?php if (!empty($versiones)): ?>
-            <?php foreach ($versiones as $version): ?>
+        <?php if (!empty($matricesLista)): ?>
+            <?php foreach ($matricesLista as $m): ?>
                 <div class="card mb-3">
                     <div class="card-body">
                         <div class="row">
                             <div class="col">
-                                <h5 class="card-title">Matriz: <?php echo htmlspecialchars($version['descripcion'] ?: ('Versión ' . (int)$version['numero_version'])); ?></h5>
-                                <h6 class="card-subtitle mb-2 text-muted">Versión #<?php echo (int)$version['numero_version']; ?> — <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($version['fecha_creacion']))); ?></h6>
-                                <span class="badge text-bg-secondary">Filas: <?php echo (int)($version['filas_count'] ?? 0); ?></span>
+                                <h5 class="card-title">Matriz: <?php echo htmlspecialchars($m['nombre'] ?: ('Matriz #' . (int)$m['id'])); ?></h5>
+                                <h6 class="card-subtitle mb-2 text-muted">Creada: <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($m['fecha_creacion']))); ?></h6>
+                                <span class="badge text-bg-secondary">Filas: <?php echo (int)($m['filas_count'] ?? 0); ?></span>
                             </div>
                             <div class="col-auto">
                                 <div class="btn-group" role="group">
@@ -84,7 +86,7 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                 </div>
                                 <div class="btn-group ms-2" role="group">
                                     <a href="#" class="btn btn-sm btn-outline-primary" title="Descargar Word (próximamente)">Word</a>
-                                    <a href="generar_matriz_excel.php?id=<?php echo (int)$version['id']; ?>" class="btn btn-sm btn-outline-success" title="Descargar Excel">Excel</a>
+                                    <a href="generar_matriz_excel.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-outline-success" title="Descargar Excel">Excel</a>
                                     <a href="#" class="btn btn-sm btn-outline-danger" title="Descargar PDF (próximamente)">PDF</a>
                                 </div>
                                 <div class="btn-group ms-2" role="group">

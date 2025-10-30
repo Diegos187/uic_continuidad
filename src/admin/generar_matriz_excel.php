@@ -4,6 +4,7 @@ require_once '../../config/database.php';
 require_once '../../src/models/MatrizCoherencia.php';
 require_once '../../src/models/Asignatura.php';
 require_once '../../src/models/Carrera.php';
+require_once '../../src/models/Matriz.php';
 require_once '../../includes/functions.php';
 require_once '../../vendor/autoload.php';
 verificarSesion();
@@ -21,15 +22,20 @@ $conexion = $db->conectar();
 $matriz = new MatrizCoherencia($conexion);
 $asignatura = new Asignatura($conexion);
 $carreraModel = new Carrera($conexion);
+$matrizModel = new Matriz($conexion);
 
-// Obtener datos de la carrera
-$carrera_id = (int)($_GET['id']);
-$stmt = $conexion->prepare("SELECT * FROM carreras WHERE id = ?");
-$stmt->execute([$carrera_id]);
-$carreraRow = $stmt->fetch(PDO::FETCH_ASSOC);
+// Obtener datos de la matriz seleccionada y su carrera
+$matriz_id = (int)($_GET['id']);
+$matrizInfo = $matrizModel->obtenerPorId($matriz_id);
 
-// Obtener matrices de coherencia asociadas a la carrera (vía modelo)
-$filasMatriz = $matriz->obtenerPorCarrera($carrera_id);
+// Si no existe la matriz, redirigir
+if (!$matrizInfo) {
+    header('Location: matrices.php');
+    exit();
+}
+
+// Obtener filas de coherencia asociadas a esta matriz
+$filasMatriz = $matriz->obtenerPorMatriz($matriz_id);
 
 $spreadSheet = new Spreadsheet();
 $sheet = $spreadSheet->getActiveSheet();
@@ -128,11 +134,15 @@ foreach ($filasMatriz as $ma) {
 $writer = new Xlsx($spreadSheet);
 
 // Proteger acceso cuando no exista la carrera (fetch puede devolver false)
-$carreraNombre = (is_array($carreraRow) && isset($carreraRow['nombre']) && $carreraRow['nombre'] !== '')
-    ? $carreraRow['nombre']
-    : ('Carrera_' . $carrera_id);
+// Nombre de archivo usando nombre de carrera y de la matriz
+$carreraNombre = (is_array($matrizInfo) && isset($matrizInfo['carrera_nombre']) && $matrizInfo['carrera_nombre'] !== '')
+    ? $matrizInfo['carrera_nombre']
+    : ('Carrera_' . (int)$matrizInfo['carrera_id']);
+$matrizNombre = (is_array($matrizInfo) && isset($matrizInfo['nombre']) && $matrizInfo['nombre'] !== '')
+    ? $matrizInfo['nombre']
+    : ('Matriz_' . $matriz_id);
 
-$filename = 'Matriz_Coherencia_Curricular_' . preg_replace('/[^A-Za-z0-9]/', '_', $carreraNombre) . '.xlsx';
+$filename = 'Matriz_Coherencia_Curricular_' . preg_replace('/[^A-Za-z0-9]/', '_', $carreraNombre . '_' . $matrizNombre) . '.xlsx';
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
 $writer->save('php://output');

@@ -13,12 +13,12 @@ class MatrizCoherencia
     {
         try {
             $query = "INSERT INTO " . $this->tabla . " 
-        (asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
+        (matriz_id, asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
         dominio, competencia, resultado_aprendizaje,
         criterios_logro, contenidos, bibliografia,
         metodologias, estrategias, sct_chile) 
                     VALUES 
-        (:asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
+        (:matriz_id, :asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
         :dominio, :competencia, :resultado_aprendizaje,
         :criterios_logro, :contenidos, :bibliografia,
         :metodologias, :estrategias, :sct_chile)";
@@ -26,6 +26,7 @@ class MatrizCoherencia
             $stmt = $this->conexion->prepare($query);
 
             // Copiar a variables locales para usar bindParam adecuadamente o bindValue para valores directos
+            $matriz_id = isset($datos['matriz_id']) && $datos['matriz_id'] !== '' ? (int)$datos['matriz_id'] : null;
             $asignatura_id = (int)($datos['asignatura_id'] ?? 0);
             $area_formacion_id = isset($datos['area_formacion_id']) && $datos['area_formacion_id'] !== '' ? (int)$datos['area_formacion_id'] : null;
             $perfil_egreso_id = isset($datos['perfil_egreso_id']) && $datos['perfil_egreso_id'] !== '' ? (int)$datos['perfil_egreso_id'] : null;
@@ -40,6 +41,11 @@ class MatrizCoherencia
             $estrategias = $datos['estrategias'] ?? null;
             $sct_chile = isset($datos['sct_chile']) && $datos['sct_chile'] !== '' ? (int)$datos['sct_chile'] : 0;
 
+            if ($matriz_id === null) {
+                $stmt->bindValue(':matriz_id', null, PDO::PARAM_NULL);
+            } else {
+                $stmt->bindValue(':matriz_id', $matriz_id, PDO::PARAM_INT);
+            }
             $stmt->bindParam(':asignatura_id', $asignatura_id, PDO::PARAM_INT);
             if ($area_formacion_id === null) {
                 $stmt->bindValue(':area_formacion_id', null, PDO::PARAM_NULL);
@@ -91,12 +97,12 @@ class MatrizCoherencia
             $this->conexion->beginTransaction();
 
             $query = "INSERT INTO " . $this->tabla . " 
-                    (asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
+                    (matriz_id, asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
                     dominio, competencia, resultado_aprendizaje,
                     criterios_logro, contenidos, bibliografia,
                     metodologias, estrategias, sct_chile) 
                     VALUES 
-                    (:asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
+                    (:matriz_id, :asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
                     :dominio, :competencia, :resultado_aprendizaje,
                     :criterios_logro, :contenidos, :bibliografia,
                     :metodologias, :estrategias, :sct_chile)";
@@ -106,6 +112,7 @@ class MatrizCoherencia
 
             foreach ($filas as $fila) {
                 // Valores por defecto y saneo mínimo
+                $matriz_id = isset($fila['matriz_id']) && $fila['matriz_id'] !== '' ? (int)$fila['matriz_id'] : null;
                 $area_formacion_id = isset($fila['area_formacion_id']) && $fila['area_formacion_id'] !== '' ? (int)$fila['area_formacion_id'] : null;
                 $perfil_egreso_id = isset($fila['perfil_egreso_id']) && $fila['perfil_egreso_id'] !== '' ? (int)$fila['perfil_egreso_id'] : null;
                 $version_id = isset($fila['version_id']) && $fila['version_id'] !== '' ? (int)$fila['version_id'] : null;
@@ -119,6 +126,11 @@ class MatrizCoherencia
                 $estrategias = $fila['estrategias'] ?? null;
                 $sct_chile = isset($fila['sct_chile']) && $fila['sct_chile'] !== '' ? (int)$fila['sct_chile'] : 0;
 
+                if ($matriz_id === null) {
+                    $stmt->bindValue(':matriz_id', null, PDO::PARAM_NULL);
+                } else {
+                    $stmt->bindValue(':matriz_id', $matriz_id, PDO::PARAM_INT);
+                }
                 $stmt->bindValue(':asignatura_id', (int)$asignatura_id, PDO::PARAM_INT);
                 if ($area_formacion_id === null) {
                     $stmt->bindValue(':area_formacion_id', null, PDO::PARAM_NULL);
@@ -192,6 +204,26 @@ class MatrizCoherencia
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("Error al obtener matrices por carrera: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function obtenerPorMatriz($matriz_id)
+    {
+        try {
+            $query = "SELECT mc.*, a.nombre AS asignatura_nombre, a.carrera_id,
+                             af.nombre AS area_formacion_nombre
+                      FROM " . $this->tabla . " mc
+                      JOIN asignaturas a ON a.id = mc.asignatura_id
+                      LEFT JOIN areas_formacion af ON af.id = mc.area_formacion_id
+                      WHERE mc.matriz_id = :matriz_id
+                      ORDER BY mc.id ASC";
+            $stmt = $this->conexion->prepare($query);
+            $stmt->bindParam(':matriz_id', $matriz_id, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error al obtener matrices por matriz_id: " . $e->getMessage());
             return [];
         }
     }

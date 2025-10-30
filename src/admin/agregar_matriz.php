@@ -5,6 +5,7 @@ require_once '../../src/models/MatrizCoherencia.php';
 require_once '../../src/models/VersionMatriz.php';
 require_once '../../src/models/Asignatura.php';
 require_once '../../src/models/Carrera.php';
+require_once '../../src/models/Matriz.php';
 require_once '../../includes/functions.php';
 
 verificarSesion();
@@ -15,6 +16,7 @@ $asignatura = new Asignatura($conexion);
 $carrera = new Carrera($conexion);
 $matriz = new MatrizCoherencia($conexion);
 $versiones = new VersionMatriz($conexion);
+$matrizGeneral = new Matriz($conexion);
 
 $error = '';
 $success = '';
@@ -39,6 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $version_id = $versiones->crear($carrera_id, $descripcion_version);
         if (!$version_id) {
             $error = 'No se pudo crear la versión de la matriz.';
+        } else {
+            // Crear registro de matriz (grupo) para distinguir las filas
+            $nombreMatriz = $descripcion_version !== '' ? $descripcion_version : ('Matriz versión ' . (int)$version_id);
+            $matriz_id_creada = $matrizGeneral->crear($carrera_id, $version_id, $nombreMatriz, $descripcion_version);
+            if (!$matriz_id_creada) {
+                $error = 'No se pudo crear el registro de matriz.';
+            }
         }
     }
 
@@ -66,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $asignaturaIdFila = isset($fila['actividad_curricular_id']) ? (int)limpiarDatos($fila['actividad_curricular_id']) : null;
 
             $filas[] = [
+                'matriz_id' => $matriz_id_creada ?? null,
                 'asignatura_id' => $asignaturaIdFila,
                 'area_formacion_id' => isset($fila['area_formacion_id']) ? limpiarDatos($fila['area_formacion_id']) : null,
                 // Usar el perfil seleccionado arriba (si existe)
