@@ -124,21 +124,7 @@ CREATE TABLE perfiles_egreso_detalle (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
--- Tabla: versiones_matriz
--- --------------------------------------------------------
-CREATE TABLE versiones_matriz (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  carrera_id INT(11) NOT NULL,
-  numero_version INT(11) NOT NULL,
-  descripcion TEXT DEFAULT NULL,
-  fecha_creacion TIMESTAMP NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (id),
-  KEY carrera_id (carrera_id),
-  CONSTRAINT versiones_matriz_ibfk_1 FOREIGN KEY (carrera_id) REFERENCES carreras (id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
--- Tabla: matrices
+-- Tabla: matrices (SIN DEPENDENCIAS DE versiones_matriz)
 -- --------------------------------------------------------
 CREATE TABLE matrices (
   id INT(11) NOT NULL AUTO_INCREMENT,
@@ -149,10 +135,30 @@ CREATE TABLE matrices (
   fecha_creacion TIMESTAMP NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (id),
   KEY carrera_id (carrera_id),
-  KEY version_id (version_id),
-  CONSTRAINT fk_matriz_carrera FOREIGN KEY (carrera_id) REFERENCES carreras (id) ON DELETE CASCADE,
-  CONSTRAINT fk_matriz_version_general FOREIGN KEY (version_id) REFERENCES versiones_matriz (id) ON DELETE SET NULL
+  CONSTRAINT fk_matriz_carrera FOREIGN KEY (carrera_id) REFERENCES carreras (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+-- Tabla: versiones_matriz (AHORA SÍ PUEDE REFERENCIAR matrices)
+-- --------------------------------------------------------
+CREATE TABLE versiones_matriz (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  matriz_id INT(11) NOT NULL,
+  carrera_id INT(11) NOT NULL,
+  numero_version INT(11) NOT NULL,
+  descripcion TEXT DEFAULT NULL,
+  fecha_creacion TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (id),
+  KEY matriz_id (matriz_id),
+  KEY carrera_id (carrera_id),
+  CONSTRAINT fk_version_matriz FOREIGN KEY (matriz_id) REFERENCES matrices (id) ON DELETE CASCADE,
+  CONSTRAINT versiones_matriz_ibfk_1 FOREIGN KEY (carrera_id) REFERENCES carreras (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+-- Agregar constraintde version_id en matrices (DESPUÉS de crear versiones_matriz)
+-- --------------------------------------------------------
+ALTER TABLE matrices ADD CONSTRAINT fk_matriz_version_general FOREIGN KEY (version_id) REFERENCES versiones_matriz (id) ON DELETE SET NULL;
 
 
 -- --------------------------------------------------------

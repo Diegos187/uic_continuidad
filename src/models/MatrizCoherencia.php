@@ -228,6 +228,27 @@ class MatrizCoherencia
         }
     }
 
+    public function obtenerPorMatrizYVersion($matriz_id, $version_id)
+    {
+        try {
+            $query = "SELECT mc.*, a.nombre AS asignatura_nombre, a.carrera_id,
+                             af.nombre AS area_formacion_nombre
+                      FROM " . $this->tabla . " mc
+                      JOIN asignaturas a ON a.id = mc.asignatura_id
+                      LEFT JOIN areas_formacion af ON af.id = mc.area_formacion_id
+                      WHERE mc.matriz_id = :matriz_id AND mc.version_id = :version_id
+                      ORDER BY mc.id ASC";
+            $stmt = $this->conexion->prepare($query);
+            $stmt->bindParam(':matriz_id', $matriz_id, PDO::PARAM_INT);
+            $stmt->bindParam(':version_id', $version_id, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error al obtener matrices por matriz_id y version_id: " . $e->getMessage());
+            return [];
+        }
+    }
+
     public function actualizar($id, $datos)
     {
         try {
@@ -287,6 +308,23 @@ class MatrizCoherencia
         } catch (PDOException $e) {
             error_log("Error al obtener matriz por ID: " . $e->getMessage());
             return null;
+        }
+    }
+
+    public function contarFilasPorVersion($matriz_id, $version_id)
+    {
+        try {
+            $query = "SELECT COUNT(*) as total FROM " . $this->tabla . " 
+                      WHERE matriz_id = :matriz_id AND version_id = :version_id";
+            $stmt = $this->conexion->prepare($query);
+            $stmt->bindParam(':matriz_id', $matriz_id, PDO::PARAM_INT);
+            $stmt->bindParam(':version_id', $version_id, PDO::PARAM_INT);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int)($result['total'] ?? 0);
+        } catch (PDOException $e) {
+            error_log("Error al contar filas por versión: " . $e->getMessage());
+            return 0;
         }
     }
 }

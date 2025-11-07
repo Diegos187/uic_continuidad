@@ -35,10 +35,14 @@ class Matriz
     public function obtenerPorCarrera($carrera_id)
     {
         try {
-            $sql = "SELECT m.*, (
+            $sql = "SELECT m.*, 
+                    v.descripcion AS version_descripcion,
+                    v.numero_version AS version_numero,
+                    (
                         SELECT COUNT(*) FROM matrices_coherencia mc WHERE mc.matriz_id = m.id
                     ) AS filas_count
                     FROM " . $this->tabla . " m
+                    LEFT JOIN versiones_matriz v ON v.id = m.version_id
                     WHERE m.carrera_id = :carrera_id
                     ORDER BY m.fecha_creacion DESC, m.id DESC";
             $stmt = $this->conexion->prepare($sql);
@@ -68,4 +72,3 @@ class Matriz
         }
     }
 }
-?>

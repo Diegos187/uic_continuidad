@@ -27,7 +27,8 @@ try {
 
     // 2) Áreas por perfil
     if ($perfilId && ($action === 'areas' || $action === 'areas_por_perfil' || empty($action))) {
-        $stmt = $conn->prepare('SELECT DISTINCT af.id, af.nombre AS descripcion
+        $stmt = $conn->prepare('SELECT DISTINCT af.id, af.nombre AS descripcion, 
+                                       ped.dominio, ped.competencia
                                  FROM perfiles_egreso_detalle ped
                                  INNER JOIN areas_formacion af ON af.id = ped.area_formacion_id
                                  WHERE ped.perfil_egreso_id = :pid

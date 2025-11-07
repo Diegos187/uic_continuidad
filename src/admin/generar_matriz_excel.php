@@ -34,8 +34,11 @@ if (!$matrizInfo) {
     exit();
 }
 
-// Obtener filas de coherencia asociadas a esta matriz
-$filasMatriz = $matriz->obtenerPorMatriz($matriz_id);
+// Obtener la versión actual de la matriz
+$version_id = (int)($matrizInfo['version_id'] ?? 0);
+
+// Obtener filas de coherencia asociadas a esta matriz Y su versión actual
+$filasMatriz = $matriz->obtenerPorMatrizYVersion($matriz_id, $version_id);
 
 $spreadSheet = new Spreadsheet();
 $sheet = $spreadSheet->getActiveSheet();
@@ -147,5 +150,3 @@ header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetm
 header('Content-Disposition: attachment; filename="' . $filename . '"');
 $writer->save('php://output');
 exit();
-
-?>
