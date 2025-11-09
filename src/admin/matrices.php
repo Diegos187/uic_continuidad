@@ -142,7 +142,7 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                     <button type="button" class="btn btn-sm btn-danger" title="Eliminar (próximamente)" disabled>Eliminar</button>
                                 </div>
                                 <div class="btn-group ms-2" role="group">
-                                    <a href="#" class="btn btn-sm btn-outline-primary" title="Descargar Word (próximamente)">Word</a>
+                                    <a href="generar_matriz_word.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-outline-primary" title="Descargar Word (próximamente)">Word</a>
                                     <a href="generar_matriz_excel.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-outline-success" title="Descargar Excel">Excel</a>
                                     <a href="#" class="btn btn-sm btn-outline-danger" title="Descargar PDF (próximamente)">PDF</a>
                                 </div>
