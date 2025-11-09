@@ -49,7 +49,7 @@ $sheet->getStyle('A1')->getFont()->setBold(TRUE);
 $sheet->getStyle('A2:K2')->applyFromArray([
     'font' => [
         'bold' => true,
-        'size' => 12,
+        'size' => 11,
         'name' => 'Calibri',
     ],
     'alignment' => [
@@ -70,7 +70,12 @@ $sheet->getStyle('A2:K2')->applyFromArray([
     ],
 ]);
 
-$sheet->getColumnDimension('A')->setAutoSize(true);
+foreach (range('A', 'K') as $col) {
+    $sheet->getColumnDimension($col)->setAutoSize(true);
+}
+
+$sheet->getRowDimension(2)->setRowHeight(54);
+/*$sheet->getColumnDimension('A')->setAutoSize(true);
 $sheet->getColumnDimension('B')->setAutoSize(true);
 $sheet->getColumnDimension('C')->setAutoSize(true);
 $sheet->getColumnDimension('D')->setAutoSize(true);
@@ -80,7 +85,7 @@ $sheet->getColumnDimension('G')->setAutoSize(true);
 $sheet->getColumnDimension('H')->setAutoSize(true);
 $sheet->getColumnDimension('I')->setAutoSize(true);
 $sheet->getColumnDimension('J')->setAutoSize(true);
-$sheet->getColumnDimension('K')->setAutoSize(true);
+$sheet->getColumnDimension('K')->setAutoSize(true);*/
 
 $sheet->setCellValue('A1', 'MATRIZ DE COHERENCIA CURRICULAR');
 $sheet->setCellValue('A2', 'ÁREA DE FORMACIÓN');
