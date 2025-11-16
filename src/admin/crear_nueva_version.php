@@ -20,45 +20,39 @@ $matrizGeneral = new Matriz($conexion);
 
 $error = '';
 $success = '';
+$matriz_id = isset($_GET['matriz_id']) ? (int)$_GET['matriz_id'] : 0;
+
+// Obtener datos de la matriz actual
+$matrizActual = null;
+$carrera_id = 0;
+if ($matriz_id) {
+    $matrizActual = $matrizGeneral->obtenerPorId($matriz_id);
+    if ($matrizActual) {
+        $carrera_id = (int)$matrizActual['carrera_id'];
+    }
+}
+
+if (!$matrizActual) {
+    $error = 'Matriz no encontrada.';
+}
 
 // Obtener listas base
 $carreras = $carrera->obtenerTodas();
 $asignaturasTodas = $asignatura->obtenerTodas();
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $carrera_id = isset($_POST['carrera_id']) ? (int)limpiarDatos($_POST['carrera_id']) : null;
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
     $descripcion_version = isset($_POST['descripcion_version']) ? trim(limpiarDatos($_POST['descripcion_version'])) : '';
     $filasPost = isset($_POST['filas']) && is_array($_POST['filas']) ? $_POST['filas'] : [];
 
-    if (!$carrera_id) {
-        $error = 'Debe seleccionar una carrera.';
-    } elseif ($descripcion_version === '') {
-        $error = 'Debe ingresar un nombre o descripción para la matriz.';
+    if ($descripcion_version === '') {
+        $error = 'Debe ingresar un nombre o descripción para la nueva versión.';
     } elseif (empty($filasPost)) {
-        $error = 'Debe agregar al menos una fila a la matriz.';
+        $error = 'Debe agregar al menos una fila a la versión.';
     } else {
-        // PASO 1: Crear registro de matriz PRIMERO (sin version_id)
-        $nombreMatriz = $descripcion_version !== '' ? $descripcion_version : ('Matriz ' . date('Y-m-d H:i'));
-        $matriz_id_creada = $matrizGeneral->crear($carrera_id, null, $nombreMatriz, $descripcion_version);
-        if (!$matriz_id_creada) {
-            $error = 'No se pudo crear el registro de matriz.';
-        } else {
-            // PASO 2: Crear versión DESPUÉS (vinculada a la matriz que acabamos de crear)
-            $version_id = $versiones->crear($matriz_id_creada, $carrera_id, $descripcion_version);
-            if (!$version_id) {
-                $error = 'No se pudo crear la versión de la matriz.';
-            } else {
-                // PASO 3: Actualizar la matriz con el version_id
-                try {
-                    $sql = "UPDATE matrices SET version_id = :version_id WHERE id = :matriz_id";
-                    $stmt = $conexion->prepare($sql);
-                    $stmt->bindParam(':version_id', $version_id, PDO::PARAM_INT);
-                    $stmt->bindParam(':matriz_id', $matriz_id_creada, PDO::PARAM_INT);
-                    $stmt->execute();
-                } catch (Exception $e) {
-                    error_log('Error actualizando version_id en matriz: ' . $e->getMessage());
-                }
-            }
+        // Crear nueva versión de matriz vinculada a la matriz específica
+        $version_id = $versiones->crear($matriz_id, $carrera_id, $descripcion_version);
+        if (!$version_id) {
+            $error = 'No se pudo crear la versión de la matriz.';
         }
     }
 
@@ -86,12 +80,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $asignaturaIdFila = isset($fila['actividad_curricular_id']) ? (int)limpiarDatos($fila['actividad_curricular_id']) : null;
 
             $filas[] = [
-                'matriz_id' => $matriz_id_creada ?? null,
+                'matriz_id' => $matriz_id,
                 'asignatura_id' => $asignaturaIdFila,
                 'area_formacion_id' => isset($fila['area_formacion_id']) ? limpiarDatos($fila['area_formacion_id']) : null,
-                // Usar el perfil seleccionado arriba (si existe)
                 'perfil_egreso_id' => $perfil_superior ?: (isset($fila['perfil_egreso_id']) ? limpiarDatos($fila['perfil_egreso_id']) : null),
-                // Asignar la versión recién creada
                 'version_id' => $version_id,
                 'dominio' => isset($fila['dominio']) ? limpiarDatos($fila['dominio']) : null,
                 'competencia' => isset($fila['competencia']) ? limpiarDatos($fila['competencia']) : null,
@@ -108,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($filas)) {
             $error = 'No hay filas válidas para guardar.';
         } else {
-            // Insertar por fila para permitir actividad curricular por fila
+            // Insertar filas por versión
             $ids = [];
             foreach ($filas as $f) {
                 if (empty($f['asignatura_id'])) {
@@ -116,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
                 $id = $matriz->crear($f);
                 if ($id === false) {
-                    $error = 'Error al crear una fila de la matriz.';
+                    $error = 'Error al crear una fila de la versión.';
                     break;
                 }
                 $ids[] = $id;
@@ -134,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <html lang="es">
 
 <head>
-    <title>Agregar Matriz de Coherencia - UTEM</title>
+    <title>Nueva Versión de Matriz - UTEM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
@@ -147,8 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="card">
                     <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h2>Nueva Matriz de Coherencia Curricular</h2>
-                            <a href="matrices.php" class="btn btn-secondary">Volver</a>
+                            <h2>Nueva Versión de Matriz</h2>
+                            <a href="matrices.php?carrera_id=<?php echo $carrera_id; ?>" class="btn btn-secondary">Volver</a>
                         </div>
                     </div>
                     <div class="card-body">
@@ -157,43 +149,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         if (!empty($success)) echo mostrarMensaje($success, 'success');
                         ?>
 
-                        <form method="POST" action="" class="needs-validation" novalidate>
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-6">
-                                    <label for="carrera_id" class="form-label">Carrera</label>
-                                    <select class="form-select" id="carrera_id" name="carrera_id" required onchange="cargarAsignaturasYAnexos()">
-                                        <option value="">Seleccione una carrera</option>
-                                        <?php foreach ($carreras as $carr): ?>
-                                            <option value="<?php echo $carr['id']; ?>"><?php echo htmlspecialchars($carr['nombre']); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
+                        <?php if ($matrizActual): ?>
+                            <div class="alert alert-info mb-3">
+                                <strong>Matriz actual:</strong> <?php echo htmlspecialchars($matrizActual['nombre']); ?>
+                            </div>
+
+                            <form method="POST" action="" class="needs-validation" novalidate>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-12">
+                                        <label for="perfil_id" class="form-label">Perfil de egreso</label>
+                                        <select class="form-select" id="perfil_id" name="perfil_id" required disabled onchange="cargarAreasPorPerfil()">
+                                            <option value="">Seleccione un perfil</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <label for="perfil_id" class="form-label">Perfil de egreso</label>
-                                    <select class="form-select" id="perfil_id" name="perfil_id" required disabled onchange="cargarAreasPorPerfil()">
-                                        <option value="">Seleccione un perfil</option>
-                                    </select>
+
+                                <div class="mb-3">
+                                    <label for="descripcion_version" class="form-label">Nombre/Descripción de la nueva versión</label>
+                                    <input type="text" class="form-control" id="descripcion_version" name="descripcion_version" placeholder="Ej: Actualización 2026 - Plan mejorado" required />
                                 </div>
-                            </div>
 
-                            <div class="mb-3">
-                                <label for="descripcion_version" class="form-label">Nombre/Descripción de la matriz</label>
-                                <input type="text" class="form-control" id="descripcion_version" name="descripcion_version" placeholder="Ej: Matriz cohorte 2026 - Plan diurno" required />
-                            </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="m-0">Filas de la Versión</h5>
+                                    <button type="button" class="btn btn-sm btn-success" onclick="agregarFila()">+ Agregar otra fila</button>
+                                </div>
 
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="m-0">Filas de la Matriz</h5>
-                                <button type="button" class="btn btn-sm btn-success" onclick="agregarFila()">+ Agregar otra fila</button>
-                            </div>
+                                <div class="accordion" id="filas-container">
+                                    <!-- Las filas dinámicas se insertan aquí por JS -->
+                                </div>
 
-                            <div class="accordion" id="filas-container">
-                                <!-- Las filas dinámicas se insertan aquí por JS -->
+                                <div class="d-grid gap-2 mt-3">
+                                    <button type="submit" class="btn btn-primary">Crear Nueva Versión</button>
+                                </div>
+                            </form>
+                        <?php else: ?>
+                            <div class="alert alert-danger">
+                                No se pudo cargar la matriz. Por favor, intente nuevamente.
                             </div>
-
-                            <div class="d-grid gap-2 mt-3">
-                                <button type="submit" class="btn btn-primary">Crear Matriz</button>
-                            </div>
-                        </form>
+                            <a href="matrices.php" class="btn btn-secondary">Volver al listado</a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -211,6 +205,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             areasPorPerfil: [],
             asignaturas: []
         };
+
+        const carreraId = <?php echo $carrera_id; ?>;
+        const asignaturasJSON = <?php echo json_encode(array_map(function ($a) {
+                                    return ['id' => $a['id'], 'nombre' => $a['nombre']];
+                                }, $asignaturasTodas)); ?>;
+
+        // Inicializar asignaturas en caché
+        atributosCache.asignaturas = asignaturasJSON.filter(a => true);
 
         function optionMarkupId(lista, placeholder) {
             const opts = [`<option value="">${placeholder}</option>`];
@@ -292,7 +294,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <textarea class="form-control" name="filas[${index}][metodologias]" rows="2"></textarea>
                         </div>
 
-        
                         <div class="mb-3">
                             <label class="form-label">Estrategias</label>
                             <textarea class="form-control" name="filas[${index}][estrategias]" rows="2"></textarea>
@@ -365,11 +366,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         function habilitarSelectsFila(item) {
-            // Habilitar actividades curriculares si hay carrera seleccionada
-            const carreraId = document.getElementById('carrera_id').value;
+            // Habilitar actividades curriculares
             const selActividad = item.querySelector('.campo-actividad');
             if (selActividad) {
-                if (carreraId && atributosCache.asignaturas.length) {
+                if (atributosCache.asignaturas.length) {
                     selActividad.innerHTML = optionAsignaturas(atributosCache.asignaturas, 'Seleccione una actividad curricular');
                     selActividad.disabled = false;
                 } else {
@@ -396,145 +396,68 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             textos.forEach(t => t.addEventListener('change', () => actualizarResumenFila(item)));
         }
 
-        function poblarSelectsConAtributos() {
-            const items = document.querySelectorAll('#filas-container .accordion-item');
-            items.forEach(item => {
-                const selAct = item.querySelector('.campo-actividad');
-                if (selAct) {
-                    const prev = selAct.value;
-                    selAct.innerHTML = optionAsignaturas(atributosCache.asignaturas, 'Seleccione una actividad curricular');
-                    selAct.disabled = atributosCache.asignaturas.length === 0;
-                    if (prev) selAct.value = prev;
-                }
-            });
-        }
-
-        function cargarAsignaturasYAnexos() {
-            const carreraId = document.getElementById('carrera_id').value;
-            if (!carreraId) {
-                atributosCache = {
-                    perfiles: [],
-                    versiones: [],
-                    resultados: [],
-                    areasPorPerfil: [],
-                    asignaturas: []
-                };
-                // limpiar select perfil
-                const selPerfil = document.getElementById('perfil_id');
-                selPerfil.innerHTML = '<option value="">Seleccione un perfil</option>';
-                selPerfil.disabled = true;
-                // limpiar selects de área y actividad curricular, y campos dominio/competencia
-                document.querySelectorAll('.campo-area').forEach(sel => {
-                    sel.disabled = true;
-                    sel.innerHTML = '<option value="">Seleccione un área</option>';
-                });
-                document.querySelectorAll('.campo-actividad').forEach(sel => {
-                    sel.disabled = true;
-                    sel.innerHTML = '<option value="">Seleccione una actividad curricular</option>';
-                });
-                document.querySelectorAll('.campo-dominio').forEach(el => el.value = '');
-                document.querySelectorAll('.campo-competencia').forEach(el => el.value = '');
-                // actualizar resúmenes
-                document.querySelectorAll('#filas-container .accordion-item').forEach(item => actualizarResumenFila(item));
-                poblarSelectsConAtributos();
-                return;
-            }
-            // Poblar asignaturas locales por carrera
-            atributosCache.asignaturas = <?php echo json_encode($asignaturasTodas); ?>.filter(a => String(a.carrera_id) === String(carreraId));
-            // Resetear perfil mientras carga, y limpiar áreas/dominios/competencias y actividad curricular
-            const selPerfil = document.getElementById('perfil_id');
-            selPerfil.innerHTML = '<option value="">Seleccione un perfil</option>';
-            selPerfil.disabled = true;
-            document.querySelectorAll('.campo-area').forEach(sel => {
-                sel.disabled = true;
-                sel.innerHTML = '<option value="">Seleccione un área</option>';
-            });
-            document.querySelectorAll('.campo-actividad').forEach(sel => {
-                sel.disabled = true;
-                sel.innerHTML = '<option value="">Seleccione una actividad curricular</option>';
-            });
-            document.querySelectorAll('.campo-dominio').forEach(el => el.value = '');
-            document.querySelectorAll('.campo-competencia').forEach(el => el.value = '');
-            document.querySelectorAll('#filas-container .accordion-item').forEach(item => actualizarResumenFila(item));
-            // Cargar anexos dependientes de carrera (perfiles, versiones)
-            fetch(`../../src/api/atributos.php?carrera_id=${carreraId}`)
-                .then(r => r.json())
-                .then(data => {
-                    atributosCache.perfiles = data.perfiles || [];
-                    atributosCache.versiones = data.versiones || [];
-                    atributosCache.resultados = [];
-                    // Poblar select de perfil
-                    const selPerfil = document.getElementById('perfil_id');
-                    selPerfil.innerHTML = optionMarkupId(atributosCache.perfiles, 'Seleccione un perfil');
-                    selPerfil.disabled = atributosCache.perfiles.length === 0;
-                    atributosCache.areasPorPerfil = [];
-                    // Deshabilitar áreas en filas hasta seleccionar perfil
-                    document.querySelectorAll('.campo-area').forEach(sel => {
-                        sel.disabled = true;
-                        sel.innerHTML = '<option value="">Seleccione un área</option>';
-                    });
-                    // Poblar actividades curriculares en filas
-                    poblarSelectsConAtributos();
-                })
-                .catch(err => console.error('Error cargar anexos:', err));
-        }
-
-        function cargarAtributos() {
-            /* selector superior de asignatura eliminado */
-        }
-
         function cargarAreasPorPerfil() {
             const perfilId = document.getElementById('perfil_id').value;
-            atributosCache.areasPorPerfil = [];
-            document.querySelectorAll('.campo-area').forEach(sel => {
-                sel.disabled = true;
-                sel.innerHTML = '<option value="">Seleccione un área</option>';
-            });
-            // Limpiar dominio/competencia en todas las filas para evitar datos obsoletos
-            document.querySelectorAll('.campo-dominio').forEach(el => el.value = '');
-            document.querySelectorAll('.campo-competencia').forEach(el => el.value = '');
             if (!perfilId) return;
-            fetch(`../../src/api/atributos.php?perfil_id=${perfilId}&action=areas`)
+
+            fetch(`../../src/api/atributos.php?perfil_id=${perfilId}`)
                 .then(r => r.json())
                 .then(data => {
                     atributosCache.areasPorPerfil = data.areas || [];
-                    document.querySelectorAll('.campo-area').forEach(sel => {
-                        sel.innerHTML = optionMarkupId(atributosCache.areasPorPerfil, 'Seleccione un área');
-                        sel.disabled = atributosCache.areasPorPerfil.length === 0;
+
+                    // Habilitar selects de área en todas las filas
+                    const items = document.querySelectorAll('#filas-container .accordion-item');
+                    items.forEach(item => {
+                        const selArea = item.querySelector('.campo-area');
+                        if (selArea) {
+                            selArea.innerHTML = optionMarkupId(atributosCache.areasPorPerfil, 'Seleccione un área');
+                            selArea.disabled = false;
+                        }
                     });
                 })
-                .catch(err => console.error('Error cargar áreas por perfil:', err));
+                .catch(err => console.error('Error cargando áreas:', err));
         }
 
-        function onAreaChange(selectEl) {
-            const areaId = selectEl.value;
-            const perfilId = document.getElementById('perfil_id').value;
-            const item = selectEl.closest('.accordion-item');
-            const txtDom = item.querySelector('.campo-dominio');
-            const txtComp = item.querySelector('.campo-competencia');
-            if (!areaId || !perfilId) {
-                txtDom.value = '';
-                txtComp.value = '';
-                actualizarResumenFila(item);
+        function onAreaChange(select) {
+            const item = select.closest('.accordion-item');
+            const areaId = select.value;
+            const campoDominio = item.querySelector('.campo-dominio');
+            const campoCompetencia = item.querySelector('.campo-competencia');
+
+            if (!areaId) {
+                if (campoDominio) campoDominio.value = '';
+                if (campoCompetencia) campoCompetencia.value = '';
                 return;
             }
-            fetch(`../../src/api/atributos.php?perfil_id=${perfilId}&area_id=${areaId}&action=detalle`)
-                .then(r => r.json())
-                .then(data => {
-                    const det = data.detalle || {
-                        dominio: '',
-                        competencia: ''
-                    };
-                    txtDom.value = det.dominio || '';
-                    txtComp.value = det.competencia || '';
-                    actualizarResumenFila(item);
-                })
-                .catch(err => console.error('Error cargar detalle perfil/área:', err));
+
+            // Buscar área en caché
+            const area = atributosCache.areasPorPerfil.find(a => String(a.id) === String(areaId));
+            if (area) {
+                const dominioText = area.dominio || '';
+                const competenciaText = area.competencia || '';
+                if (campoDominio) campoDominio.value = dominioText;
+                if (campoCompetencia) campoCompetencia.value = competenciaText;
+                actualizarResumenFila(item);
+            }
         }
 
-        // Inicializar con una fila al cargar
-        document.addEventListener('DOMContentLoaded', () => {
-            agregarFila();
+        // Cargar perfiles al abrir la página
+        window.addEventListener('DOMContentLoaded', () => {
+            const perfil_id_select = document.getElementById('perfil_id');
+            if (perfil_id_select) {
+                fetch(`../../src/api/atributos.php?carrera_id=${carreraId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        atributosCache.perfiles = data.perfiles || [];
+                        const opts = ['<option value="">Seleccione un perfil</option>'];
+                        atributosCache.perfiles.forEach(p => {
+                            opts.push(`<option value="${p.id}">${p.descripcion}</option>`);
+                        });
+                        perfil_id_select.innerHTML = opts.join('');
+                        perfil_id_select.disabled = false;
+                    })
+                    .catch(err => console.error('Error cargando perfiles:', err));
+            }
         });
     </script>
 </body>
