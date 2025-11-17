@@ -43,14 +43,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Validar que haya al menos una fila válida y que cada fila tenga área de formación
         $filasValidas = [];
         $errorArea = false;
+        $errorCampos = false;
         foreach ($filas as $f) {
             $dom = isset($f['dominio']) ? trim($f['dominio']) : '';
             $comp = isset($f['competencia']) ? trim($f['competencia']) : '';
             $areaId = isset($f['area_formacion_id']) ? (int)$f['area_formacion_id'] : 0;
+
+            // Si hay contenido en al menos uno de los campos (dominio o competencia)
             if ($dom !== '' || $comp !== '') {
+                // Validar que AMBOS campos estén llenos
+                if ($dom === '' || $comp === '') {
+                    $errorCampos = true;
+                    break;
+                }
+
+                // Validar que haya área seleccionada
                 if ($areaId <= 0) {
                     $errorArea = true;
+                    break;
                 }
+
                 $filasValidas[] = [
                     'area_formacion_id' => $areaId > 0 ? $areaId : null,
                     'dominio' => $dom,
@@ -59,10 +71,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($errorArea) {
+        if ($errorCampos) {
+            $error = 'Los campos Dominio y Competencias son obligatorios en cada fila.';
+        } elseif ($errorArea) {
             $error = 'Debe seleccionar un área de formación en cada fila ingresada.';
         } elseif (empty($filasValidas)) {
-            $error = 'Debe completar al menos una fila (Dominio o Competencia).';
+            $error = 'Debe completar al menos una fila (Dominio y Competencia).';
         } else {
             try {
                 $conn->beginTransaction();
@@ -84,10 +98,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 $conn->commit();
-                redirigir('perfiles_egreso.php?carrera_id=' . $carreraId);
+
+                // Si es AJAX, devolver JSON
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'message' => 'Perfil de egreso creado correctamente', 'redirect' => 'perfiles_egreso.php?carrera_id=' . $carreraId]);
+                    exit;
+                }
+                // Si no es AJAX, redirigir
+                header('Location: perfiles_egreso.php?carrera_id=' . $carreraId . '&success=1');
+                exit;
             } catch (Exception $e) {
                 if ($conn->inTransaction()) $conn->rollBack();
                 $error = 'Error al guardar: ' . $e->getMessage();
+                // Si es AJAX, devolver error en JSON
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                    header('Content-Type: application/json');
+                    http_response_code(500);
+                    echo json_encode(['success' => false, 'message' => $error]);
+                    exit;
+                }
             }
         }
     }
@@ -111,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="col-md-10">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h2>Nuevo Perfil de egreso (<?php echo htmlspecialchars($carrera['nombre']); ?>)</h2>
+                        <h2>Nuevo Perfil de egreso <strong><?php echo htmlspecialchars($carrera['nombre']); ?></strong></h2>
                         <a class="btn btn-secondary" href="perfiles_egreso.php?carrera_id=<?php echo $carreraId; ?>">Volver</a>
                     </div>
                     <div class="card-body">
@@ -122,13 +152,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <form method="POST" action="">
                             <div class="mb-3">
-                                <label class="form-label">Nombre del perfil de egreso (versión)</label>
+                                <label class="form-label">Nombre del perfil de egreso</label>
                                 <input type="text" class="form-control" name="nombre_perfil" required />
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h5 class="m-0">Detalles (mínimo una fila)</h5>
-                                <button type="button" class="btn btn-sm btn-success" onclick="agregarFila()">+ Agregar fila</button>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="agregarFila()">Agregar fila</button>
                             </div>
 
                             <div class="accordion" id="filas-container"></div>
@@ -150,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const AREAS = <?php echo json_encode($areas); ?>;
 
         function optionAreas() {
-            const opts = ["<option value=''>Seleccione un área (opcional)</option>"];
+            const opts = ["<option value=''>Seleccione un área</option>"];
             AREAS.forEach(a => opts.push(`<option value='${a.id}'>${a.nombre.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</option>`));
             return opts.join('');
         }
@@ -174,11 +204,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Dominio</label>
+                            <label class="form-label">Dominio <span class="text-danger">*</span></label>
                             <textarea class="form-control campo-dominio textarea-resize" name="filas[${index}][dominio]" rows="3" placeholder="Escriba el dominio"></textarea>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Competencias</label>
+                            <label class="form-label">Competencias <span class="text-danger">*</span></label>
                             <textarea class="form-control campo-competencia textarea-resize" name="filas[${index}][competencia]" rows="3" placeholder="Escriba las competencias"></textarea>
                         </div>
                         <div class="text-end">
@@ -198,9 +228,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const node = tmp.firstChild;
             cont.appendChild(node);
 
-            // Colapsar otros y expandir la nueva
-            cont.querySelectorAll('.accordion-collapse').forEach(c => c.classList.remove('show'));
-            node.querySelector('.accordion-collapse').classList.add('show');
+            // Obtener todos los collapses y sus botones
+            const allCollapses = Array.from(cont.querySelectorAll('.accordion-collapse'));
+            const allButtons = Array.from(cont.querySelectorAll('.accordion-button'));
+
+            // Colapsar todos los demás (con transición)
+            allCollapses.forEach((c, idx) => {
+                if (c !== node.querySelector('.accordion-collapse') && c.classList.contains('show')) {
+                    c.classList.remove('show');
+                    if (allButtons[idx]) {
+                        allButtons[idx].classList.add('collapsed');
+                        allButtons[idx].setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+
+            // Expandir la nueva fila después de la transición de cierre
+            setTimeout(() => {
+                const newCollapse = node.querySelector('.accordion-collapse');
+                const newButton = node.querySelector('.accordion-button');
+                newCollapse.classList.add('show');
+                newButton.classList.remove('collapsed');
+                newButton.setAttribute('aria-expanded', 'true');
+                // Scroll suave hacia la nueva fila
+                node.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }, 100);
 
             // Listeners para resumen
             habilitarResumenFila(node);
@@ -300,7 +355,195 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             resize: vertical;
             min-height: 80px;
         }
+
+        /* Animación suave para accordion con transición de altura */
+        .accordion-collapse {
+            transition: height 0.35s ease, opacity 0.35s ease, margin 0.35s ease, padding 0.35s ease !important;
+            overflow: hidden !important;
+        }
+
+        .accordion-button {
+            transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+        }
+
+        .accordion-button:not(.collapsed) {
+            background-color: #e7f1ff;
+        }
+
+        /* Toast flotante */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        .toast-success {
+            background-color: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease-out;
+            min-width: 300px;
+        }
+
+        .toast-error {
+            background-color: #dc3545;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease-out;
+            min-width: 300px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .toast-success.hidden {
+            animation: slideOut 0.3s ease-out forwards;
+        }
     </style>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        function mostrarToastExito(mensaje = 'Perfil de egreso creado correctamente', duracion = 1500) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast-success';
+            toast.textContent = mensaje;
+            container.appendChild(toast);
+
+            // Auto-remover después del tiempo especificado
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                setTimeout(() => toast.remove(), 300);
+            }, duracion);
+        }
+
+        function mostrarToastError(mensaje = 'Error al guardar') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast-error';
+            toast.textContent = mensaje;
+            container.appendChild(toast);
+
+            // Auto-remover después de 4 segundos
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Interceptar envío del formulario
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.querySelector('form');
+            if (form) {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+
+                    // Validar que haya al menos una fila
+                    const filasContainer = document.getElementById('filas-container');
+                    const filasItems = filasContainer.querySelectorAll('.accordion-item');
+                    if (filasItems.length === 0) {
+                        mostrarToastError('Debe completar al menos una fila');
+                        return;
+                    }
+
+                    // Validar que cada fila tenga dominio y competencia (ambos obligatorios)
+                    let filasValidas = 0;
+                    for (let item of filasItems) {
+                        const dominio = item.querySelector('.campo-dominio')?.value.trim() || '';
+                        const competencia = item.querySelector('.campo-competencia')?.value.trim() || '';
+                        const area = item.querySelector('.campo-area')?.value || '';
+
+                        // Si hay contenido en al menos un campo
+                        if (dominio || competencia) {
+                            // Ambos campos son obligatorios
+                            if (!dominio || !competencia) {
+                                mostrarToastError('Los campos Dominio y Competencias son obligatorios en cada fila');
+                                return;
+                            }
+
+                            if (!area) {
+                                mostrarToastError('Debe seleccionar un área de formación en cada fila ingresada');
+                                return;
+                            }
+                            filasValidas++;
+                        }
+                    }
+
+                    if (filasValidas === 0) {
+                        mostrarToastError('Debe completar al menos una fila con dominio y competencia');
+                        return;
+                    }
+
+                    // Enviar por AJAX
+                    const formData = new FormData(form);
+                    fetch(form.action || '', {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                return response.json().then(data => Promise.reject(data));
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                mostrarToastExito(data.message, 1500);
+                                // Redirigir después de 1.5 segundos
+                                setTimeout(() => {
+                                    window.location.href = data.redirect;
+                                }, 1500);
+                            } else {
+                                mostrarToastError(data.message);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            mostrarToastError(error.message || 'Error al guardar el perfil');
+                        });
+                });
+            }
+        });
+
+        // Mostrar toast si viene del éxito (fallback para navegación no-AJAX)
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('success')) {
+                mostrarToastExito();
+            }
+        });
+    </script>
 </body>
 
 </html>

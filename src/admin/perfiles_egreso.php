@@ -48,7 +48,7 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
         <div class="container-fluid mb-4">
             <div class="row align-items-center">
                 <div class="col">
-                    <h1>Perfil de egreso (<?php echo htmlspecialchars($carrera['nombre']); ?>)</h1>
+                    <h1>Perfil de egreso <strong><?php echo htmlspecialchars($carrera['nombre']); ?></strong></h1>
                 </div>
                 <div class="col-auto">
                     <a href="carreras.php" class="btn btn-secondary me-2">Volver</a>

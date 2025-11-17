@@ -47,14 +47,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $filasValidas = [];
         $errorArea = false;
+        $errorCampos = false;
         foreach ($filas as $f) {
             $dom = isset($f['dominio']) ? trim($f['dominio']) : '';
             $comp = isset($f['competencia']) ? trim($f['competencia']) : '';
             $areaId = isset($f['area_formacion_id']) ? (int)$f['area_formacion_id'] : 0;
+
+            // Si hay contenido en al menos uno de los campos (dominio o competencia)
             if ($dom !== '' || $comp !== '') {
+                // Validar que AMBOS campos estén llenos
+                if ($dom === '' || $comp === '') {
+                    $errorCampos = true;
+                    break;
+                }
+
+                // Validar que haya área seleccionada
                 if ($areaId <= 0) {
                     $errorArea = true;
+                    break;
                 }
+
                 $filasValidas[] = [
                     'area_formacion_id' => $areaId > 0 ? $areaId : null,
                     'dominio' => $dom,
@@ -63,10 +75,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($errorArea) {
+        if ($errorCampos) {
+            $error = 'Los campos Dominio y Competencias son obligatorios en cada fila.';
+        } elseif ($errorArea) {
             $error = 'Debe seleccionar un área de formación en cada fila ingresada.';
         } elseif (empty($filasValidas)) {
-            $error = 'Debe completar al menos una fila (Dominio o Competencia).';
+            $error = 'Debe completar al menos una fila (Dominio y Competencia).';
         } else {
             try {
                 $conn->beginTransaction();
@@ -87,11 +101,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $conn->commit();
-                header('Location: perfiles_egreso.php?carrera_id=' . $carreraId);
+                // Si es AJAX, devolver JSON
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'message' => 'Cambios guardados correctamente']);
+                    exit;
+                }
+                // Si no es AJAX, redirigir
+                header('Location: perfiles_egreso.php?carrera_id=' . $carreraId . '&success=1');
                 exit;
             } catch (Exception $e) {
                 if ($conn->inTransaction()) $conn->rollBack();
                 $error = 'Error al guardar: ' . $e->getMessage();
+                // Si es AJAX, devolver error en JSON
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                    header('Content-Type: application/json');
+                    http_response_code(500);
+                    echo json_encode(['success' => false, 'message' => $error]);
+                    exit;
+                }
             }
         }
     }
@@ -118,7 +146,7 @@ $detalles = $detalleModel->listarPorPerfil($perfilId);
             <div class="col-md-10">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h2>Editar Perfil de egreso (<?php echo htmlspecialchars($carrera['nombre']); ?>)</h2>
+                        <h2>Editar Perfil de egreso <Strong><?php echo htmlspecialchars($carrera['nombre']); ?></Strong></h2>
                         <a class="btn btn-secondary" href="perfiles_egreso.php?carrera_id=<?php echo $carreraId; ?>">Volver</a>
                     </div>
                     <div class="card-body">
@@ -128,13 +156,13 @@ $detalles = $detalleModel->listarPorPerfil($perfilId);
 
                         <form method="POST" action="">
                             <div class="mb-3">
-                                <label class="form-label">Nombre del perfil de egreso (versión)</label>
+                                <label class="form-label">Nombre del perfil de egreso</label>
                                 <input type="text" class="form-control" name="nombre_perfil" value="<?php echo htmlspecialchars($perfil['descripcion']); ?>" required />
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h5 class="m-0">Detalles</h5>
-                                <button type="button" class="btn btn-sm btn-success" onclick="agregarFila()">+ Agregar fila</button>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="agregarFila(null, true)">Agregar fila</button>
                             </div>
 
                             <div class="accordion" id="filas-container"></div>
@@ -174,11 +202,11 @@ $detalles = $detalleModel->listarPorPerfil($perfilId);
             return `
             <div class="accordion-item" data-index="${index}">
                 <h2 class="accordion-header" id="${headerId}">
-                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="true" aria-controls="${collapseId}">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="false" aria-controls="${collapseId}">
                         Fila ${index + 1} <span class="ms-2 text-muted resumen-fila"></span>
                     </button>
                 </h2>
-                <div id="${collapseId}" class="accordion-collapse collapse show" aria-labelledby="${headerId}" data-bs-parent="#filas-container">
+                <div id="${collapseId}" class="accordion-collapse collapse" aria-labelledby="${headerId}" data-bs-parent="#filas-container">
                     <div class="accordion-body pt-3">
                         <div class="mb-3">
                             <label class="form-label">Área de formación</label>
@@ -187,11 +215,11 @@ $detalles = $detalleModel->listarPorPerfil($perfilId);
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Dominio</label>
+                            <label class="form-label">Dominio <span class="text-danger">*</span></label>
                             <textarea class="form-control campo-dominio textarea-resize" name="filas[${index}][dominio]" rows="3" placeholder="Escriba el dominio">${dom.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Competencias</label>
+                            <label class="form-label">Competencias <span class="text-danger">*</span></label>
                             <textarea class="form-control campo-competencia textarea-resize" name="filas[${index}][competencia]" rows="3" placeholder="Escriba las competencias">${comp.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
                         </div>
                         <div class="text-end">
@@ -203,7 +231,7 @@ $detalles = $detalleModel->listarPorPerfil($perfilId);
             </div>`;
         }
 
-        function agregarFila(preset = null) {
+        function agregarFila(preset = null, expandir = false) {
             const cont = document.getElementById('filas-container');
             const html = plantillaFila(filaCounter, preset);
             const tmp = document.createElement('div');
@@ -211,8 +239,37 @@ $detalles = $detalleModel->listarPorPerfil($perfilId);
             const node = tmp.firstChild;
             cont.appendChild(node);
 
-            cont.querySelectorAll('.accordion-collapse').forEach(c => c.classList.remove('show'));
-            node.querySelector('.accordion-collapse').classList.add('show');
+            // Solo expandir si es una nueva fila agregada manualmente
+            if (expandir) {
+                // Obtener todos los collapses y sus botones
+                const allCollapses = Array.from(cont.querySelectorAll('.accordion-collapse'));
+                const allButtons = Array.from(cont.querySelectorAll('.accordion-button'));
+
+                // Colapsar todos los demás (con transición)
+                allCollapses.forEach((c, idx) => {
+                    if (c !== node.querySelector('.accordion-collapse') && c.classList.contains('show')) {
+                        c.classList.remove('show');
+                        if (allButtons[idx]) {
+                            allButtons[idx].classList.add('collapsed');
+                            allButtons[idx].setAttribute('aria-expanded', 'false');
+                        }
+                    }
+                });
+
+                // Expandir la nueva fila después de la transición de cierre
+                setTimeout(() => {
+                    const newCollapse = node.querySelector('.accordion-collapse');
+                    const newButton = node.querySelector('.accordion-button');
+                    newCollapse.classList.add('show');
+                    newButton.classList.remove('collapsed');
+                    newButton.setAttribute('aria-expanded', 'true');
+                    // Scroll suave hacia la nueva fila
+                    node.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                }, 100);
+            }
 
             habilitarResumenFila(node);
             filaCounter++;
@@ -299,6 +356,77 @@ $detalles = $detalleModel->listarPorPerfil($perfilId);
             } else {
                 agregarFila();
             }
+
+            // Interceptar envío del formulario
+            const form = document.querySelector('form');
+            if (form) {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+
+                    // Validar que haya al menos una fila
+                    const filasContainer = document.getElementById('filas-container');
+                    const filasItems = filasContainer.querySelectorAll('.accordion-item');
+                    if (filasItems.length === 0) {
+                        mostrarToastError('Debe completar al menos una fila');
+                        return;
+                    }
+
+                    // Validar que cada fila tenga dominio y competencia (ambos obligatorios)
+                    let filasValidas = 0;
+                    for (let item of filasItems) {
+                        const dominio = item.querySelector('.campo-dominio')?.value.trim() || '';
+                        const competencia = item.querySelector('.campo-competencia')?.value.trim() || '';
+                        const area = item.querySelector('.campo-area')?.value || '';
+
+                        // Si hay contenido en al menos un campo
+                        if (dominio || competencia) {
+                            // Ambos campos son obligatorios
+                            if (!dominio || !competencia) {
+                                mostrarToastError('Los campos Dominio y Competencias son obligatorios en cada fila');
+                                return;
+                            }
+
+                            if (!area) {
+                                mostrarToastError('Debe seleccionar un área de formación en cada fila ingresada');
+                                return;
+                            }
+                            filasValidas++;
+                        }
+                    }
+
+                    if (filasValidas === 0) {
+                        mostrarToastError('Debe completar al menos una fila con dominio y competencia');
+                        return;
+                    }
+
+                    // Enviar por AJAX
+                    const formData = new FormData(form);
+                    fetch(form.action || '', {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                return response.json().then(data => Promise.reject(data));
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                mostrarToastExito(data.message);
+                            } else {
+                                mostrarToastError(data.message);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            mostrarToastError(error.message || 'Error al guardar los cambios');
+                        });
+                });
+            }
         });
     </script>
 
@@ -307,7 +435,114 @@ $detalles = $detalleModel->listarPorPerfil($perfilId);
             resize: vertical;
             min-height: 80px;
         }
+
+        /* Animación suave para accordion con transición de altura */
+        .accordion-collapse {
+            transition: height 0.35s ease, opacity 0.35s ease, margin 0.35s ease, padding 0.35s ease !important;
+            overflow: hidden !important;
+        }
+
+        .accordion-button {
+            transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+        }
+
+        .accordion-button:not(.collapsed) {
+            background-color: #e7f1ff;
+        }
+
+        /* Toast flotante */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        .toast-success {
+            background-color: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease-out;
+            min-width: 300px;
+        }
+
+        .toast-error {
+            background-color: #dc3545;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease-out;
+            min-width: 300px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .toast-success.hidden {
+            animation: slideOut 0.3s ease-out forwards;
+        }
     </style>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        function mostrarToastExito(mensaje = 'Cambios guardados correctamente') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast-success';
+            toast.textContent = mensaje;
+            container.appendChild(toast);
+
+            // Auto-remover después de 3 segundos y recargar la página
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                setTimeout(() => {
+                    toast.remove();
+                    // Recargar la página después de que desaparezca el toast
+                    location.reload();
+                }, 300);
+            }, 1000);
+        }
+
+        function mostrarToastError(mensaje = 'Error al guardar') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast-error';
+            toast.textContent = mensaje;
+            container.appendChild(toast);
+
+            // Auto-remover después de 4 segundos
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    </script>
 </body>
 
 </html>

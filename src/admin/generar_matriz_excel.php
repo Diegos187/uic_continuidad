@@ -55,6 +55,7 @@ $sheet->getStyle('A2:K2')->applyFromArray([
     'alignment' => [
         'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
         'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+        'wrapText' => true,
     ],
 
     'borders' => [
@@ -70,22 +71,26 @@ $sheet->getStyle('A2:K2')->applyFromArray([
     ],
 ]);
 
-foreach (range('A', 'K') as $col) {
-    $sheet->getColumnDimension($col)->setAutoSize(true);
+// Establecer anchos fijos para las columnas
+$columnWidths = [
+    'A' => 20,  // Área de formación
+    'B' => 35,  // Dominio
+    'C' => 35,  // Competencia
+    'D' => 60,  // Resultados de aprendizaje
+    'E' => 60,  // Criterios de logro
+    'F' => 60,  // Contenidos/Saberes
+    'G' => 20,  // Actividad curricular
+    'H' => 12,  // SCT-Chile
+    'I' => 35,  // Metodologías activas
+    'J' => 25,  // Estrategias de evaluación
+    'K' => 25,  // Bibliografía
+];
+
+foreach ($columnWidths as $col => $width) {
+    $sheet->getColumnDimension($col)->setWidth($width);
 }
 
 $sheet->getRowDimension(2)->setRowHeight(54);
-/*$sheet->getColumnDimension('A')->setAutoSize(true);
-$sheet->getColumnDimension('B')->setAutoSize(true);
-$sheet->getColumnDimension('C')->setAutoSize(true);
-$sheet->getColumnDimension('D')->setAutoSize(true);
-$sheet->getColumnDimension('E')->setAutoSize(true);
-$sheet->getColumnDimension('F')->setAutoSize(true);
-$sheet->getColumnDimension('G')->setAutoSize(true);
-$sheet->getColumnDimension('H')->setAutoSize(true);
-$sheet->getColumnDimension('I')->setAutoSize(true);
-$sheet->getColumnDimension('J')->setAutoSize(true);
-$sheet->getColumnDimension('K')->setAutoSize(true);*/
 
 $sheet->setCellValue('A1', 'MATRIZ DE COHERENCIA CURRICULAR');
 $sheet->setCellValue('A2', 'ÁREA DE FORMACIÓN');

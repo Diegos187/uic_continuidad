@@ -58,7 +58,7 @@ $carreras = $carrera->obtenerTodas();
                             <a href="editar_carrera.php?id=<?php echo $c['id']; ?>"
                                 class="btn btn-warning btn-sm">Editar</a>
                             <a href="perfiles_egreso.php?carrera_id=<?php echo $c['id']; ?>"
-                                class="btn btn-info btn-sm">Perfil de Egreso</a>
+                                class="btn btn-primary btn-sm">Perfil de Egreso</a>
                             <a href="eliminar_carrera.php?id=<?php echo $c['id']; ?>"
                                 class="btn btn-danger btn-sm"
                                 onclick="return confirm('¿Estás seguro? Se eliminarán también todas las asignaturas asociadas.')">
