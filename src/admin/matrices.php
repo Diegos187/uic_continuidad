@@ -138,8 +138,9 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                             </div>
                             <div class="col-auto">
                                 <div class="btn-group" role="group">
+                                    <a href="previsualizar_matriz.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-info" title="Previsualizar matriz">Previsualizar</a>
                                     <a href="editar_matriz.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-warning" title="Editar matriz">Editar</a>
-                                    <button type="button" class="btn btn-sm btn-danger" title="Eliminar (próximamente)" disabled>Eliminar</button>
+                                    <button type="button" class="btn btn-sm btn-danger" title="Eliminar" data-bs-toggle="modal" data-bs-target="#modalEliminarMatriz<?php echo (int)$m['id']; ?>">Eliminar</button>
                                 </div>
                                 <div class="btn-group ms-2" role="group">
                                     <a href="generar_matriz_word.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-outline-primary" title="Descargar Word (próximamente)">Word</a>
@@ -168,6 +169,22 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                 <?php
                                 $versiones = $versionModel->obtenerVersionesPorMatriz((int)$m['id']);
                                 $versionActualId = (int)($m['version_id'] ?? 0);
+
+                                // Ordenar para que la versión actual esté al principio
+                                if (!empty($versiones)) {
+                                    usort($versiones, function ($a, $b) use ($versionActualId) {
+                                        $aEsActual = ((int)$a['id'] === $versionActualId) ? 1 : 0;
+                                        $bEsActual = ((int)$b['id'] === $versionActualId) ? 1 : 0;
+
+                                        if ($aEsActual !== $bEsActual) {
+                                            return $bEsActual - $aEsActual; // Actual primero
+                                        }
+
+                                        // Si ambas tienen el mismo estado, ordenar por fecha descendente
+                                        return strtotime($b['fecha_creacion']) - strtotime($a['fecha_creacion']);
+                                    });
+                                }
+
                                 if (!empty($versiones)):
                                 ?>
                                     <div class="d-flex flex-column gap-3">
@@ -187,7 +204,7 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                                     </p>
                                                 </div>
                                                 <div class="d-flex gap-2 justify-content-end">
-                                                    <button type="button" class="btn btn-sm btn-primary" title="Previsualizar versión">Previsualizar</button>
+                                                    <a href="previsualizar_matriz.php?id=<?php echo (int)$m['id']; ?>&version_id=<?php echo (int)$v['id']; ?>" class="btn btn-sm btn-info" title="Previsualizar versión">Previsualizar</a>
                                                     <?php if (!$esActual): ?>
                                                         <button type="button" class="btn btn-sm btn-primary" onclick="restablecerVersion(<?php echo (int)$m['id']; ?>, <?php echo (int)$v['id']; ?>)" title="Restablecer versión">Restablecer versión</button>
                                                         <button type="button" class="btn btn-sm btn-danger" onclick="eliminarVersion(<?php echo (int)$m['id']; ?>, <?php echo (int)$v['id']; ?>)" title="Eliminar versión">Eliminar</button>
@@ -207,6 +224,32 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                         </div>
                     </div>
                 </div>
+
+                <!-- Modal de Eliminación de Matriz -->
+                <div class="modal fade" id="modalEliminarMatriz<?php echo (int)$m['id']; ?>" tabindex="-1" aria-labelledby="labelEliminarMatriz<?php echo (int)$m['id']; ?>" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger-light">
+                                <h5 class="modal-title" id="labelEliminarMatriz<?php echo (int)$m['id']; ?>">Eliminar Matriz</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-3">¿Qué deseas hacer con esta matriz?</p>
+                                <div class="d-grid gap-2">
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarTodasLasVersiones(<?php echo (int)$m['id']; ?>)" data-bs-dismiss="modal">
+                                        Eliminar toda la matriz y versiones
+                                    </button>
+                                    <button type="button" class="btn btn-outline-warning" onclick="eliminarSoloVersion(<?php echo (int)$m['id']; ?>, <?php echo (int)($m['version_id'] ?? 0); ?>)" data-bs-dismiss="modal">
+                                        Eliminar solo la versión actual
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             <?php endforeach; ?>
         <?php else: ?>
             <div class="alert alert-info">No hay matrices de coherencia registradas para esta carrera.</div>
@@ -217,6 +260,119 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        function eliminarTodasLasVersiones(matrizId) {
+            Swal.fire({
+                title: '¿Eliminar toda la matriz?',
+                text: 'Se eliminarán TODAS las versiones y filas asociadas. Esta acción es irreversible.',
+                icon: 'error',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, eliminar todo',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Realizar petición para eliminar toda la matriz
+                    fetch('eliminar_matriz.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                matriz_id: matrizId,
+                                tipo_eliminacion: 'completa'
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                Swal.fire({
+                                    title: '¡Eliminado!',
+                                    text: data.message,
+                                    icon: 'success',
+                                    confirmButtonColor: '#0d6efd'
+                                }).then(() => {
+                                    location.reload();
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: 'Error',
+                                    text: data.error || 'No se pudo eliminar la matriz',
+                                    icon: 'error',
+                                    confirmButtonColor: '#dc3545'
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            Swal.fire({
+                                title: 'Error',
+                                text: 'Error en la comunicación con el servidor',
+                                icon: 'error',
+                                confirmButtonColor: '#dc3545'
+                            });
+                        });
+                }
+            });
+        }
+
+        function eliminarSoloVersion(matrizId, versionId) {
+            Swal.fire({
+                title: '¿Eliminar solo la versión actual?',
+                text: 'Se eliminará la versión actual y se seleccionará automáticamente la versión anterior.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ffc107',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, eliminar versión',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Realizar petición para eliminar solo la versión
+                    fetch('eliminar_matriz.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                matriz_id: matrizId,
+                                version_id: versionId,
+                                tipo_eliminacion: 'version'
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                Swal.fire({
+                                    title: '¡Eliminado!',
+                                    text: data.message,
+                                    icon: 'success',
+                                    confirmButtonColor: '#0d6efd'
+                                }).then(() => {
+                                    location.reload();
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: 'Error',
+                                    text: data.error || 'No se pudo eliminar la versión',
+                                    icon: 'error',
+                                    confirmButtonColor: '#dc3545'
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            Swal.fire({
+                                title: 'Error',
+                                text: 'Error en la comunicación con el servidor',
+                                icon: 'error',
+                                confirmButtonColor: '#dc3545'
+                            });
+                        });
+                }
+            });
+        }
+
         function restablecerVersion(matrizId, versionId) {
             Swal.fire({
                 title: '¿Restablecer versión?',

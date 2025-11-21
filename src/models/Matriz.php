@@ -71,4 +71,17 @@ class Matriz
             return null;
         }
     }
+
+    public function eliminar($id)
+    {
+        try {
+            $sql = "DELETE FROM " . $this->tabla . " WHERE id = :id";
+            $stmt = $this->conexion->prepare($sql);
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('Error al eliminar matriz: ' . $e->getMessage());
+            return false;
+        }
+    }
 }
