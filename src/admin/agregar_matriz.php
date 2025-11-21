@@ -6,6 +6,9 @@ require_once '../../src/models/VersionMatriz.php';
 require_once '../../src/models/Asignatura.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../src/models/Matriz.php';
+require_once '../../src/models/CompetenciaDominio.php';
+require_once '../../src/models/ResultadoAprendizajeRef.php';
+require_once '../../src/models/CriterioLogroRef.php';
 require_once '../../includes/functions.php';
 
 verificarSesion();
@@ -17,6 +20,9 @@ $carrera = new Carrera($conexion);
 $matriz = new MatrizCoherencia($conexion);
 $versiones = new VersionMatriz($conexion);
 $matrizGeneral = new Matriz($conexion);
+$competenciaModel = new CompetenciaDominio($conexion);
+$resultadoModel = new ResultadoAprendizajeRef($conexion);
+$criterioModel = new CriterioLogroRef($conexion);
 
 $error = '';
 $success = '';
@@ -86,26 +92,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $dominio = isset($fila['dominio']) ? trim(limpiarDatos($fila['dominio'])) : '';
                     $competencia = isset($fila['competencia']) ? trim(limpiarDatos($fila['competencia'])) : '';
                     $resultado = isset($fila['resultado_aprendizaje']) ? trim(limpiarDatos($fila['resultado_aprendizaje'])) : '';
-                    $criterios = isset($fila['criterios_logro']) ? trim(limpiarDatos($fila['criterios_logro'])) : '';
-
                     // Si la fila tiene contenido, validar que todos los campos obligatorios estén llenos
                     if (!$todosVacios) {
                         if (!$actividad_id) {
                             $error = 'Debe seleccionar una Actividad Curricular en todas las filas.';
                             break;
                         }
-                        if (empty($resultado)) {
-                            $error = 'El campo Resultado de Aprendizaje es obligatorio en todas las filas.';
-                            break;
-                        }
-                        if (empty($criterios)) {
-                            $error = 'El campo Criterios de Logro es obligatorio en todas las filas.';
-                            break;
-                        }
                     }
 
                     // Tomar perfil de egreso del nivel superior (si viene)
                     $perfil_superior = isset($_POST['perfil_id']) ? (int)limpiarDatos($_POST['perfil_id']) : null;
+
+                    // Procesar competencias seleccionadas
+                    $competenciasSeleccionadas = isset($fila['competencias_ids']) && is_array($fila['competencias_ids']) ? array_map('intval', $fila['competencias_ids']) : [];
+                    $resultadosSeleccionados = isset($fila['resultados_ids']) && is_array($fila['resultados_ids']) ? array_map('intval', $fila['resultados_ids']) : [];
+                    $criteriosSeleccionados = isset($fila['criterios_ids']) && is_array($fila['criterios_ids']) ? array_map('intval', $fila['criterios_ids']) : [];
 
                     $filas[] = [
                         'matriz_id' => $matriz_id_creada,
@@ -115,8 +116,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         'version_id' => $version_id,
                         'dominio' => $dominio,
                         'competencia' => $competencia,
-                        'resultado_aprendizaje' => $resultado,
-                        'criterios_logro' => $criterios,
+                        'competencias_ids' => $competenciasSeleccionadas,
+                        'resultados_ids' => $resultadosSeleccionados,
+                        'criterios_ids' => $criteriosSeleccionados,
                         'contenidos' => isset($fila['contenidos']) ? limpiarDatos($fila['contenidos']) : null,
                         'bibliografia' => isset($fila['bibliografia']) ? limpiarDatos($fila['bibliografia']) : null,
                         'metodologias' => isset($fila['metodologias']) ? limpiarDatos($fila['metodologias']) : null,
@@ -286,21 +288,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label class="form-label">Área de formación</label>
-                                <select class="form-select campo-area" name="filas[${index}][area_formacion_id]" onchange="onAreaChange(this)" disabled required>
+                                <select class="form-select campo-area" name="filas[${index}][area_formacion_id]" onchange="cargarCompetencias(${index})" disabled required>
                                     ${optionMarkupId(atributosCache.areasPorPerfil, 'Seleccione un área')}
                                 </select>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-8 mb-3">
                                 <label class="form-label">Dominio</label>
                                 <textarea class="form-control campo-dominio" name="filas[${index}][dominio]" rows="2" disabled></textarea>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Competencia</label>
-                                <textarea class="form-control campo-competencia" name="filas[${index}][competencia]" rows="2" disabled></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Competencias <span class="text-muted">(múltiples)</span></label>
+                            <div class="competencias-checkboxes" id="competencias-${index}" style="border: 1px solid #dee2e6; padding: 15px 10px; border-radius: 5px; background-color: #f8f9fa;">
+                                <p class="text-muted mb-0 small">Seleccione un área primero</p>
                             </div>
-                            <div class="col-md-12 mb-3">
-                                <label class="form-label">Resultado de Aprendizaje</label>
-                                <textarea class="form-control campo-resultado" id="campo-resultado-${index}" name="filas[${index}][resultado_aprendizaje]" rows="2" required></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Resultados de Aprendizaje <span class="text-muted">(agrupados por competencia)</span></label>
+                            <div class="resultados-checkboxes" id="resultados-${index}" style="border: 1px solid #dee2e6; padding: 15px 10px; border-radius: 5px; background-color: #f8f9fa;">
+                                <p class="text-muted mb-0 small">Seleccione competencias primero</p>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Criterios de Logro <span class="text-muted">(agrupados por resultado)</span></label>
+                            <div class="criterios-checkboxes" id="criterios-${index}" style="border: 1px solid #dee2e6; padding: 15px 10px; border-radius: 5px; background-color: #f8f9fa;">
+                                <p class="text-muted mb-0 small">Seleccione resultados de aprendizaje primero</p>
                             </div>
                         </div>
 
@@ -309,11 +324,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <select class="form-select campo-actividad" name="filas[${index}][actividad_curricular_id]" required>
                                 <option value="">Seleccione una actividad curricular</option>
                             </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Criterios de Logro</label>
-                            <textarea class="form-control" name="filas[${index}][criterios_logro]" rows="2" required></textarea>
                         </div>
 
                         <div class="mb-3">
@@ -331,7 +341,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <textarea class="form-control" name="filas[${index}][metodologias]" rows="2"></textarea>
                         </div>
 
-        
                         <div class="mb-3">
                             <label class="form-label">Estrategias</label>
                             <textarea class="form-control" name="filas[${index}][estrategias]" rows="2"></textarea>
@@ -577,20 +586,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 .catch(err => console.error('Error cargar áreas por perfil:', err));
         }
 
-        function onAreaChange(selectEl) {
-            const areaId = selectEl.value;
+        function cargarCompetencias(index) {
+            const item = document.querySelector(`[data-index="${index}"]`);
+            const areaSelect = item.querySelector('.campo-area');
+            const areaId = areaSelect.value;
             const perfilId = document.getElementById('perfil_id').value;
-            const item = selectEl.closest('.accordion-item');
             const txtDom = item.querySelector('.campo-dominio');
-            const txtComp = item.querySelector('.campo-competencia');
+            const competenciasContainer = document.getElementById(`competencias-${index}`);
+            const resultadosContainer = document.getElementById(`resultados-${index}`);
+            const criteriosContainer = document.getElementById(`criterios-${index}`);
+
             if (!areaId || !perfilId) {
                 txtDom.value = '';
-                txtComp.value = '';
+                competenciasContainer.innerHTML = '<p class="text-muted mb-0">Seleccione un área primero</p>';
+                resultadosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione competencias primero</p>';
+                criteriosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
                 autoResizeTextarea(txtDom);
-                autoResizeTextarea(txtComp);
                 actualizarResumenFila(item);
                 return;
             }
+
+            // Cargar dominio y competencias
             fetch(`../../src/api/atributos.php?perfil_id=${perfilId}&area_id=${areaId}&action=detalle`)
                 .then(r => r.json())
                 .then(data => {
@@ -599,13 +615,252 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         competencia: ''
                     };
                     txtDom.value = det.dominio || '';
-                    txtComp.value = det.competencia || '';
-                    // Auto-ajustar altura
                     autoResizeTextarea(txtDom);
-                    autoResizeTextarea(txtComp);
+
+                    // Cargar competencias para este área
+                    return fetch(`../../src/api/atributos.php?perfil_id=${perfilId}&area_id=${areaId}&action=competencias`);
+                })
+                .then(r => r.json())
+                .then(competenciasData => {
+                    const competencias = competenciasData.competencias || [];
+                    if (competencias.length === 0) {
+                        competenciasContainer.innerHTML = '<p class="text-muted mb-0">No hay competencias disponibles</p>';
+                        resultadosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione competencias primero</p>';
+                        criteriosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
+                    } else {
+                        let html = '';
+                        competencias.forEach(comp => {
+                            html += `
+                            <div class="form-check">
+                                <input class="form-check-input competencia-checkbox" type="checkbox" value="${comp.id}" 
+                                       id="comp_${index}_${comp.id}" name="filas[${index}][competencias_ids]" 
+                                       onchange="cargarResultados(${index})">
+                                <label class="form-check-label" for="comp_${index}_${comp.id}">
+                                    ${comp.codigo} - ${comp.descripcion}
+                                </label>
+                            </div>`;
+                        });
+                        competenciasContainer.innerHTML = html;
+                        resultadosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione competencias primero</p>';
+                        criteriosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
+                    }
                     actualizarResumenFila(item);
                 })
-                .catch(err => console.error('Error cargar detalle perfil/área:', err));
+                .catch(err => console.error('Error cargar competencias:', err));
+        }
+
+        function cargarResultados(index) {
+            const item = document.querySelector(`[data-index="${index}"]`);
+            const competenciasChecks = item.querySelectorAll('.competencia-checkbox:checked');
+            const competenciasIds = Array.from(competenciasChecks).map(cb => cb.value);
+            const competenciasLabels = {};
+
+            // Guardar las etiquetas de competencias para referencias
+            competenciasChecks.forEach(check => {
+                const label = item.querySelector(`label[for="${check.id}"]`);
+                if (label) {
+                    competenciasLabels[check.value] = label.textContent.trim();
+                }
+            });
+
+            const resultadosContainer = document.getElementById(`resultados-${index}`);
+            const criteriosContainer = document.getElementById(`criterios-${index}`);
+            const perfilId = document.getElementById('perfil_id').value;
+
+            if (competenciasIds.length === 0) {
+                resultadosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione competencias primero</p>';
+                criteriosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
+                actualizarResumenFila(item);
+                return;
+            }
+
+            // Enviar array de competencias seleccionadas
+            const params = new URLSearchParams();
+            params.append('perfil_id', perfilId);
+            params.append('action', 'resultados');
+            competenciasIds.forEach(id => params.append('competencia_ids[]', id));
+
+            fetch(`../../src/api/atributos.php?${params.toString()}`)
+                .then(r => r.json())
+                .then(resultadosData => {
+                    console.log('Debug API:', resultadosData.debug);
+                    const resultados = resultadosData.resultados || [];
+                    console.log('Resultados cargados:', resultados.length, resultados);
+                    if (resultados.length === 0) {
+                        resultadosContainer.innerHTML = '<p class="text-muted mb-0">No hay resultados disponibles</p>';
+                        criteriosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
+                    } else {
+                        // Agrupar resultados por competencia para mejor visualización
+                        const porCompetencia = {};
+                        const competenciasCodigos = {};
+                        resultados.forEach(res => {
+                            const cid = res.competencia_dominio_id;
+                            if (!porCompetencia[cid]) {
+                                porCompetencia[cid] = [];
+                                // Extraer código de competencia del label si es posible
+                                const label = competenciasLabels[cid] || 'Competencia';
+                                const match = label.match(/^([^-]+)\s*-/);
+                                competenciasCodigos[cid] = match ? match[1].trim() : '';
+                            }
+                            porCompetencia[cid].push(res);
+                        });
+
+                        let html = '<div>';
+                        Object.keys(porCompetencia).forEach(compId => {
+                            const compLabel = competenciasLabels[compId] || 'Competencia';
+                            const compCodigo = competenciasCodigos[compId];
+                            // Mostrar código de competencia de forma destacada
+                            let compHeader = compCodigo ? `<strong>${compCodigo}</strong>` : '';
+                            if (compLabel) {
+                                const descTruncada = compLabel.length > 100 ?
+                                    compLabel.substring(0, 100) + '...' :
+                                    compLabel;
+                                compHeader += compHeader ? ` — ${descTruncada}` : descTruncada;
+                            }
+
+                            html += `<div style="margin-bottom: 15px; padding: 12px; background: #f0f7ff; border-left: 4px solid #0dcaf0; border-radius: 4px;">
+                                <div style="font-weight: 600; color: #0c63e4; margin-bottom: 10px; font-size: 0.95rem;">${compHeader}</div>`;
+
+                            porCompetencia[compId].forEach(res => {
+                                html += `<div style="margin-bottom: 8px; margin-left: 12px;">
+                                    <div class="form-check">
+                                        <input class="form-check-input resultado-checkbox" type="checkbox" value="${res.id}" 
+                                               id="res_${index}_${res.id}" name="filas[${index}][resultados_ids]" 
+                                               data-competencia="${res.competencia_dominio_id}"
+                                               onchange="cargarCriterios(${index})">
+                                        <label class="form-check-label" for="res_${index}_${res.id}" style="margin-bottom: 0; cursor: pointer;">
+                                            <strong>${res.codigo}</strong> - ${res.descripcion}
+                                        </label>
+                                    </div>
+                                </div>`;
+                            });
+                            html += `</div>`;
+                        });
+                        html += '</div>';
+
+                        resultadosContainer.innerHTML = html;
+                        criteriosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
+
+                        // Expandir accordion-body si es necesario
+                        const accordionItem = resultadosContainer.closest('.accordion-item');
+                        if (accordionItem) {
+                            const button = accordionItem.querySelector('.accordion-button');
+                            const body = accordionItem.querySelector('.accordion-body');
+                            if (button && !button.classList.contains('collapsed')) {
+                                body.style.minHeight = 'auto';
+                                body.style.height = 'auto';
+                            }
+                        }
+                    }
+                    actualizarResumenFila(item);
+                })
+                .catch(err => console.error('Error cargar resultados:', err));
+        }
+
+        function cargarCriterios(index) {
+            const item = document.querySelector(`[data-index="${index}"]`);
+            const resultadosChecks = item.querySelectorAll('.resultado-checkbox:checked');
+            const resultadosIds = Array.from(resultadosChecks).map(cb => cb.value);
+            const resultadosLabels = {};
+
+            // Guardar las etiquetas de resultados para referencias
+            resultadosChecks.forEach(check => {
+                const label = item.querySelector(`label[for="${check.id}"]`);
+                if (label) {
+                    resultadosLabels[check.value] = label.textContent.trim();
+                }
+            });
+
+            const criteriosContainer = document.getElementById(`criterios-${index}`);
+            const perfilId = document.getElementById('perfil_id').value;
+
+            if (resultadosIds.length === 0) {
+                criteriosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
+                actualizarResumenFila(item);
+                return;
+            }
+
+            // Enviar array de resultados seleccionados
+            const params = new URLSearchParams();
+            params.append('perfil_id', perfilId);
+            params.append('action', 'criterios');
+            resultadosIds.forEach(id => params.append('resultado_ids[]', id));
+
+            fetch(`../../src/api/atributos.php?${params.toString()}`)
+                .then(r => r.json())
+                .then(criteriosData => {
+                    const criterios = criteriosData.criterios || [];
+                    if (criterios.length === 0) {
+                        criteriosContainer.innerHTML = '<p class="text-muted mb-0">No hay criterios disponibles</p>';
+                    } else {
+                        // Agrupar criterios por resultado para mejor visualización
+                        const porResultado = {};
+                        criterios.forEach(crit => {
+                            const rid = crit.resultado_aprendizaje_ref_id;
+                            if (!porResultado[rid]) {
+                                porResultado[rid] = {
+                                    label: resultadosLabels[rid] || 'Resultado',
+                                    codigo: crit.resultado_codigo || '',
+                                    descripcion: crit.resultado_descripcion || '',
+                                    criterios: []
+                                };
+                            }
+                            porResultado[rid].criterios.push(crit);
+                        });
+
+                        let html = '<div>';
+                        Object.keys(porResultado).forEach(resId => {
+                            const resData = porResultado[resId];
+                            // Mostrar código + descripción truncada del resultado
+                            let resHeader = `<strong>${resData.codigo}</strong>`;
+                            if (resData.descripcion) {
+                                const descTruncada = resData.descripcion.length > 80 ?
+                                    resData.descripcion.substring(0, 80) + '...' :
+                                    resData.descripcion;
+                                resHeader += ` — ${descTruncada}`;
+                            }
+
+                            html += `<div style="margin-bottom: 15px; padding: 12px; background: #f0f8f0; border-left: 4px solid #198754; border-radius: 4px;">
+                                <div style="font-weight: 600; color: #155724; margin-bottom: 10px; font-size: 0.95rem;">${resHeader}</div>`;
+
+                            resData.criterios.forEach(crit => {
+                                // Construir código jerárquico: C1 > RA1.C1, C2 > RA2.C2, etc.
+                                const competenciaCode = crit.competencia_codigo || '?';
+                                const codigoCompleto = `${competenciaCode} > ${resData.codigo}.${crit.codigo}`;
+                                html += `<div style="margin-bottom: 8px; margin-left: 12px;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="${crit.id}" 
+                                               id="crit_${index}_${crit.id}" name="filas[${index}][criterios_ids]"
+                                               data-resultado="${crit.resultado_aprendizaje_ref_id}">
+                                        <label class="form-check-label" for="crit_${index}_${crit.id}" style="margin-bottom: 0; cursor: pointer;">
+                                            <strong style="color: #0c63e4;">${codigoCompleto}</strong> - ${crit.descripcion}
+                                        </label>
+                                    </div>
+                                </div>`;
+                            });
+                            html += `</div>`;
+                        });
+                        html += '</div>';
+
+                        criteriosContainer.innerHTML = html;
+                    }
+                    actualizarResumenFila(item);
+
+                    // Expandir accordion-body si es necesario
+                    const accordionItem = criteriosContainer.closest('.accordion-item');
+                    if (accordionItem) {
+                        const button = accordionItem.querySelector('.accordion-button');
+                        const body = accordionItem.querySelector('.accordion-body');
+                        if (button && !button.classList.contains('collapsed')) {
+                            body.style.minHeight = 'auto';
+                            body.style.height = 'auto';
+                            setTimeout(() => {
+                                body.style.height = body.scrollHeight + 'px';
+                            }, 0);
+                        }
+                    }
+                })
+                .catch(err => console.error('Error cargar criterios:', err));
         }
 
         function autoResizeTextarea(textarea) {
@@ -663,16 +918,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
                 const areaEl = item.querySelector('.campo-area');
-                const resultadoEl = item.querySelector('.campo-resultado');
                 const actividadEl = item.querySelector('.campo-actividad');
-
-                // Obtener el textarea de criterios de logro (es el primero sin clase específica después de actividad)
-                const criteriosEl = item.querySelectorAll('textarea')[2]; // índice 2 es criterios de logro
+                const competenciasContainer = document.getElementById(`competencias-${i}`);
+                const resultadosContainer = document.getElementById(`resultados-${i}`);
+                const criteriosContainer = document.getElementById(`criterios-${i}`);
 
                 const area = areaEl.value.trim();
-                const resultado = resultadoEl.value.trim();
                 const actividad = actividadEl.value.trim();
-                const criterios = criteriosEl ? criteriosEl.value.trim() : '';
+
+                // Validar competencias seleccionadas
+                const competenciasChecked = competenciasContainer.querySelectorAll('input[type="checkbox"]:checked').length;
+                if (competenciasChecked === 0) {
+                    mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos una Competencia.`);
+                    return false;
+                }
+
+                // Validar resultados seleccionados
+                const resultadosChecked = resultadosContainer.querySelectorAll('input[type="checkbox"]:checked').length;
+                if (resultadosChecked === 0) {
+                    mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos un Resultado de Aprendizaje.`);
+                    return false;
+                }
+
+                // Validar criterios seleccionados
+                const criteriosChecked = criteriosContainer.querySelectorAll('input[type="checkbox"]:checked').length;
+                if (criteriosChecked === 0) {
+                    mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos un Criterio de Logro.`);
+                    return false;
+                }
 
                 // Validar que todos los campos obligatorios estén llenos
                 if (!area) {
@@ -684,30 +957,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     return false;
                 }
 
-                if (!resultado) {
-                    limpiarBordes(item);
-                    resultadoEl.style.borderColor = '#dc3545';
-                    resultadoEl.style.borderWidth = '2px';
-                    mostrarToastError(`Fila ${i + 1}: El campo Resultado de Aprendizaje es obligatorio.`);
-                    resultadoEl.focus();
-                    return false;
-                }
-
                 if (!actividad) {
                     limpiarBordes(item);
                     actividadEl.style.borderColor = '#dc3545';
                     actividadEl.style.borderWidth = '2px';
                     mostrarToastError(`Fila ${i + 1}: Debe seleccionar una Actividad Curricular.`);
                     actividadEl.focus();
-                    return false;
-                }
-
-                if (!criterios) {
-                    limpiarBordes(item);
-                    criteriosEl.style.borderColor = '#dc3545';
-                    criteriosEl.style.borderWidth = '2px';
-                    mostrarToastError(`Fila ${i + 1}: El campo Criterios de Logro es obligatorio.`);
-                    criteriosEl.focus();
                     return false;
                 }
             }
@@ -717,6 +972,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         // Agregar validación al formulario
         document.addEventListener('DOMContentLoaded', () => {
+            // Monitor de accordion para expandir altura
+            document.querySelectorAll('.accordion-button').forEach(button => {
+                button.addEventListener('shown.bs.collapse', function() {
+                    const body = this.closest('.accordion-item').querySelector('.accordion-body');
+                    if (body) {
+                        body.style.minHeight = 'auto';
+                        body.style.height = 'auto';
+                        body.style.overflowY = 'visible';
+                        console.log('Accordion abierto, altura:', body.offsetHeight);
+                    }
+                });
+
+                button.addEventListener('hide.bs.collapse', function() {
+                    const body = this.closest('.accordion-item').querySelector('.accordion-body');
+                    if (body) {
+                        body.style.minHeight = '0';
+                    }
+                });
+            });
+
             const form = document.querySelector('form');
             if (form) {
                 form.addEventListener('submit', function(e) {
@@ -828,6 +1103,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             overflow-y: hidden;
         }
 
+        /* Permitir que accordion-body crezca sin límite */
+        .accordion-body {
+            max-height: none !important;
+            overflow: visible !important;
+            height: auto !important;
+            min-height: auto;
+        }
+
+        .accordion-item {
+            overflow: visible !important;
+            max-height: none !important;
+        }
+
         /* Toast flotante */
         .toast-container {
             position: fixed;
@@ -886,6 +1174,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         .toast-error.hidden {
             animation: slideOut 0.3s ease-out forwards;
+        }
+
+        /* Estilos para checkboxes */
+        .competencias-checkboxes,
+        .resultados-checkboxes,
+        .criterios-checkboxes {
+            display: block !important;
+            background-color: transparent;
+            max-height: none !important;
+            overflow: visible !important;
+            height: auto !important;
+        }
+
+        .competencias-checkboxes .form-check,
+        .resultados-checkboxes .form-check,
+        .criterios-checkboxes .form-check {
+            display: block !important;
+            max-height: none !important;
+            overflow: visible !important;
+            height: auto !important;
+            min-height: auto;
+            margin-bottom: 8px;
+        }
+
+        .form-check-label {
+            cursor: pointer;
+            user-select: none;
+            padding: 4px 0 4px 6px;
+            word-break: break-word;
+            display: inline-block !important;
+            max-height: none !important;
+            overflow: visible !important;
+        }
+
+        .form-check-label small {
+            display: block;
+            font-size: 0.85rem;
+            margin-bottom: 2px;
+            font-weight: 500;
         }
     </style>
 </body>

@@ -73,7 +73,36 @@ class MatrizCoherencia
             $stmt->bindValue(':sct_chile', $sct_chile, PDO::PARAM_INT);
 
             if ($stmt->execute()) {
-                return $this->conexion->lastInsertId();
+                $id_coherencia = $this->conexion->lastInsertId();
+
+                // Insertar relaciones en matriz_tributacion
+                $competenciasIds = isset($datos['competencias_ids']) && is_array($datos['competencias_ids']) ? $datos['competencias_ids'] : [];
+                $resultadosIds = isset($datos['resultados_ids']) && is_array($datos['resultados_ids']) ? $datos['resultados_ids'] : [];
+                $criteriosIds = isset($datos['criterios_ids']) && is_array($datos['criterios_ids']) ? $datos['criterios_ids'] : [];
+
+                if (!empty($competenciasIds) && !empty($resultadosIds) && !empty($criteriosIds)) {
+                    $queryTrib = "INSERT INTO matriz_tributacion 
+                                  (coherencia_id, competencia_id, resultado_id, criterio_id, marcado) 
+                                  VALUES (:coherencia_id, :competencia_id, :resultado_id, :criterio_id, 1)
+                                  ON DUPLICATE KEY UPDATE marcado = 1";
+
+                    $stmtTrib = $this->conexion->prepare($queryTrib);
+
+                    // Insertar todas las combinaciones
+                    foreach ($competenciasIds as $cid) {
+                        foreach ($resultadosIds as $rid) {
+                            foreach ($criteriosIds as $criid) {
+                                $stmtTrib->bindValue(':coherencia_id', $id_coherencia, PDO::PARAM_INT);
+                                $stmtTrib->bindValue(':competencia_id', (int)$cid, PDO::PARAM_INT);
+                                $stmtTrib->bindValue(':resultado_id', (int)$rid, PDO::PARAM_INT);
+                                $stmtTrib->bindValue(':criterio_id', (int)$criid, PDO::PARAM_INT);
+                                $stmtTrib->execute();
+                            }
+                        }
+                    }
+                }
+
+                return $id_coherencia;
             }
             return false;
         } catch (PDOException $e) {

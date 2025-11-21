@@ -5,6 +5,9 @@ require_once '../../src/models/Carrera.php';
 require_once '../../src/models/PerfilEgreso.php';
 require_once '../../src/models/PerfilEgresoDetalle.php';
 require_once '../../src/models/AreaFormacion.php';
+require_once '../../src/models/CompetenciaDominio.php';
+require_once '../../src/models/ResultadoAprendizajeRef.php';
+require_once '../../src/models/CriterioLogroRef.php';
 require_once '../../includes/functions.php';
 
 verificarSesion();
@@ -20,6 +23,9 @@ $carreraModel = new Carrera($conn);
 $perfilModel = new PerfilEgreso($conn);
 $detalleModel = new PerfilEgresoDetalle($conn);
 $areaModel = new AreaFormacion($conn);
+$competenciaModel = new CompetenciaDominio($conn);
+$resultadoModel = new ResultadoAprendizajeRef($conn);
+$criterioModel = new CriterioLogroRef($conn);
 
 $carrera = $carreraModel->obtenerPorId($carreraId);
 if (!$carrera) {
@@ -40,63 +46,154 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($nombrePerfil === '') {
         $error = 'Debe ingresar un nombre (versión) para el perfil de egreso.';
     } else {
-        // Validar que haya al menos una fila válida y que cada fila tenga área de formación
+        // Validar que haya al menos una fila válida
         $filasValidas = [];
         $errorArea = false;
         $errorCampos = false;
+        $errorCompetencias = false;
+
         foreach ($filas as $f) {
             $dom = isset($f['dominio']) ? trim($f['dominio']) : '';
-            $comp = isset($f['competencia']) ? trim($f['competencia']) : '';
             $areaId = isset($f['area_formacion_id']) ? (int)$f['area_formacion_id'] : 0;
+            $competencias = isset($f['competencias']) && is_array($f['competencias']) ? $f['competencias'] : [];
 
-            // Si hay contenido en al menos uno de los campos (dominio o competencia)
-            if ($dom !== '' || $comp !== '') {
-                // Validar que AMBOS campos estén llenos
-                if ($dom === '' || $comp === '') {
-                    $errorCampos = true;
-                    break;
-                }
-
+            // Si hay contenido en dominio
+            if ($dom !== '') {
                 // Validar que haya área seleccionada
                 if ($areaId <= 0) {
                     $errorArea = true;
                     break;
                 }
 
+                // Validar que al menos haya una competencia
+                $competenciasValidas = [];
+                foreach ($competencias as $comp) {
+                    $codigo = isset($comp['codigo']) ? trim($comp['codigo']) : '';
+                    $descripcion = isset($comp['descripcion']) ? trim($comp['descripcion']) : '';
+
+                    if ($codigo !== '' || $descripcion !== '') {
+                        if ($codigo === '' || $descripcion === '') {
+                            $errorCompetencias = true;
+                            break 2;
+                        }
+                        $competenciasValidas[] = [
+                            'codigo' => $codigo,
+                            'descripcion' => $descripcion,
+                            'resultados' => isset($comp['resultados']) && is_array($comp['resultados']) ? $comp['resultados'] : []
+                        ];
+                    }
+                }
+
+                if (empty($competenciasValidas)) {
+                    $errorCampos = true;
+                    break;
+                }
+
                 $filasValidas[] = [
-                    'area_formacion_id' => $areaId > 0 ? $areaId : null,
+                    'area_formacion_id' => $areaId,
                     'dominio' => $dom,
-                    'competencia' => $comp,
+                    'competencias' => $competenciasValidas
                 ];
             }
         }
 
         if ($errorCampos) {
-            $error = 'Los campos Dominio y Competencias son obligatorios en cada fila.';
+            $error = 'Debe agregar al menos una competencia en cada dominio.';
         } elseif ($errorArea) {
             $error = 'Debe seleccionar un área de formación en cada fila ingresada.';
+        } elseif ($errorCompetencias) {
+            $error = 'Los campos Código y Descripción son obligatorios en cada competencia.';
         } elseif (empty($filasValidas)) {
             $error = 'Debe completar al menos una fila (Dominio y Competencia).';
         } else {
             try {
                 $conn->beginTransaction();
-                // Guardar el perfil con el nombre ingresado en la columna descripcion
+
+                // Guardar el perfil
                 $perfilId = $perfilModel->crear($carreraId, $nombrePerfil);
                 if (!$perfilId) {
                     throw new Exception('No se pudo crear el perfil de egreso.');
                 }
-                // Guardar detalles
-                $detalleModel->crearMultiple($perfilId, $filasValidas);
 
-                // Asociar áreas seleccionadas a la carrera si no están asociadas
-                $areasUsadas = array_unique(array_values(array_filter(array_map(function ($f) {
-                    return isset($f['area_formacion_id']) ? (int)$f['area_formacion_id'] : 0;
-                }, $filasValidas))));
+                // Guardar detalles (dominios)
+                foreach ($filasValidas as $fila) {
+                    $areaId = $fila['area_formacion_id'];
+                    $dominio = $fila['dominio'];
+
+                    // Crear registro en perfiles_egreso_detalle
+                    $sql = "INSERT INTO perfiles_egreso_detalle (perfil_egreso_id, area_formacion_id, dominio, competencia) 
+                            VALUES (:perfil_id, :area_id, :dominio, :competencia)";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bindParam(':perfil_id', $perfilId);
+                    $stmt->bindParam(':area_id', $areaId);
+                    $stmt->bindParam(':dominio', $dominio);
+                    $stmt->bindParam(':competencia', $dominio); // Mantener compatibilidad
+
+                    if (!$stmt->execute()) {
+                        throw new Exception('Error al guardar detalle de perfil.');
+                    }
+                    $detalleId = $conn->lastInsertId();
+
+                    // Guardar competencias dinámicas
+                    foreach ($fila['competencias'] as $competencia) {
+                        $competenciaId = $competenciaModel->crear(
+                            $detalleId,
+                            $competencia['codigo'],
+                            $competencia['descripcion']
+                        );
+
+                        if (!$competenciaId) {
+                            throw new Exception('Error al guardar competencia.');
+                        }
+
+                        // Guardar resultados de aprendizaje
+                        $resultados = $competencia['resultados'] ?? [];
+                        foreach ($resultados as $resultado) {
+                            $raCodigo = isset($resultado['codigo']) ? trim($resultado['codigo']) : '';
+                            $raDescripcion = isset($resultado['descripcion']) ? trim($resultado['descripcion']) : '';
+
+                            if ($raCodigo !== '' && $raDescripcion !== '') {
+                                $resultadoId = $resultadoModel->crear(
+                                    $competenciaId,
+                                    $raCodigo,
+                                    $raDescripcion
+                                );
+
+                                if (!$resultadoId) {
+                                    throw new Exception('Error al guardar resultado de aprendizaje.');
+                                }
+
+                                // Guardar criterios de logro
+                                $criterios = isset($resultado['criterios']) && is_array($resultado['criterios']) ? $resultado['criterios'] : [];
+                                foreach ($criterios as $criterio) {
+                                    $clCodigo = isset($criterio['codigo']) ? trim($criterio['codigo']) : '';
+                                    $clDescripcion = isset($criterio['descripcion']) ? trim($criterio['descripcion']) : '';
+
+                                    if ($clCodigo !== '' && $clDescripcion !== '') {
+                                        $criterioId = $criterioModel->crear(
+                                            $resultadoId,
+                                            $clCodigo,
+                                            $clDescripcion
+                                        );
+
+                                        if (!$criterioId) {
+                                            throw new Exception('Error al guardar criterio de logro.');
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Asociar áreas seleccionadas a la carrera
+                $areasUsadas = array_unique(array_column($filasValidas, 'area_formacion_id'));
                 foreach ($areasUsadas as $aid) {
                     if ($aid > 0) {
                         $areaModel->asociarACarrera($carreraId, $aid);
                     }
                 }
+
                 $conn->commit();
 
                 // Si es AJAX, devolver JSON
@@ -157,8 +254,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="m-0">Detalles (mínimo una fila)</h5>
-                                <button type="button" class="btn btn-sm btn-primary" onclick="agregarFila()">Agregar fila</button>
+                                <h5 class="m-0">Dominios (mínimo uno)</h5>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="agregarFila()">Agregar Dominio</button>
                             </div>
 
                             <div class="accordion" id="filas-container"></div>
@@ -192,30 +289,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="accordion-item" data-index="${index}">
                 <h2 class="accordion-header" id="${headerId}">
                     <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="true" aria-controls="${collapseId}">
-                        Fila ${index + 1} <span class="ms-2 text-muted resumen-fila"></span>
+                        Dominio ${index + 1} <span class="ms-2 text-muted resumen-fila"></span>
                     </button>
                 </h2>
                 <div id="${collapseId}" class="accordion-collapse collapse show" aria-labelledby="${headerId}" data-bs-parent="#filas-container">
                     <div class="accordion-body pt-3">
                         <div class="mb-3">
-                            <label class="form-label">Área de formación</label>
+                            <label class="form-label">Área de formación <span class="text-danger">*</span></label>
                             <select class="form-select campo-area" name="filas[${index}][area_formacion_id]" required>
                                 ${optionAreas()}
                             </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Dominio <span class="text-danger">*</span></label>
-                            <textarea class="form-control campo-dominio textarea-resize" name="filas[${index}][dominio]" rows="3" placeholder="Escriba el dominio"></textarea>
+                            <textarea class="form-control campo-dominio textarea-resize" name="filas[${index}][dominio]" rows="2" placeholder="Escriba el dominio"></textarea>
                         </div>
+
                         <div class="mb-3">
-                            <label class="form-label">Competencias <span class="text-danger">*</span></label>
-                            <textarea class="form-control campo-competencia textarea-resize" name="filas[${index}][competencia]" rows="3" placeholder="Escriba las competencias"></textarea>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label m-0">Competencias <span class="text-danger">*</span></label>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="agregarCompetencia(${index})" style="padding: 2px 8px; font-size: 12px;">+ Competencia</button>
+                            </div>
+                            <div class="competencias-container" data-dominio-index="${index}">
+                                <!-- Las competencias se agregarán aquí -->
+                            </div>
                         </div>
+
                         <div class="text-end">
                             <button type="button" class="btn btn-outline-secondary me-2" onclick="colapsarFila(${index})">Colapsar</button>
-                            <button type="button" class="btn btn-outline-danger" onclick="eliminarFila(${index})">Eliminar fila</button>
+                            <button type="button" class="btn btn-outline-danger" onclick="eliminarFila(${index})">Eliminar Dominio</button>
                         </div>
                     </div>
+                </div>
+            </div>`;
+        }
+
+        function plantillaCompetencia(filaIndex, compIndex) {
+            return `
+            <div class="card mb-2 competencia-card" data-fila="${filaIndex}" data-comp="${compIndex}">
+                <div class="card-header bg-light py-2">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <input type="text" class="form-control form-control-sm campo-comp-codigo" 
+                                   name="filas[${filaIndex}][competencias][${compIndex}][codigo]" 
+                                   placeholder="Código (ej: C1)" value="">
+                        </div>
+                        <div class="col">
+                            <input type="text" class="form-control form-control-sm campo-comp-desc" 
+                                   name="filas[${filaIndex}][competencias][${compIndex}][descripcion]" 
+                                   placeholder="Descripción competencia" value="">
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-xs btn-outline-secondary" 
+                                    onclick="agregarResultado(${filaIndex}, ${compIndex})" 
+                                    style="padding: 2px 6px; font-size: 12px;">+ RA</button>
+                            <button type="button" class="btn btn-xs btn-outline-danger" 
+                                    onclick="eliminarCompetencia(${filaIndex}, ${compIndex})" 
+                                    style="padding: 2px 6px; font-size: 12px;">✕</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body py-2 resultados-container" data-fila="${filaIndex}" data-comp="${compIndex}">
+                    <!-- Los resultados de aprendizaje irán aquí -->
+                </div>
+            </div>`;
+        }
+
+        function plantillaResultado(filaIndex, compIndex, raIndex) {
+            return `
+            <div class="ps-3 mb-2 resultado-card" data-fila="${filaIndex}" data-comp="${compIndex}" data-ra="${raIndex}">
+                <div class="row g-2 mb-2">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control form-control-sm campo-ra-codigo" 
+                               name="filas[${filaIndex}][competencias][${compIndex}][resultados][${raIndex}][codigo]" 
+                               placeholder="Código (ej: RA1)" value="">
+                    </div>
+                    <div class="col">
+                        <input type="text" class="form-control form-control-sm campo-ra-desc" 
+                               name="filas[${filaIndex}][competencias][${compIndex}][resultados][${raIndex}][descripcion]" 
+                               placeholder="Descripción resultado" value="">
+                    </div>
+                    <div class="col-auto">
+                        <button type="button" class="btn btn-xs btn-outline-secondary" 
+                                onclick="agregarCriterio(${filaIndex}, ${compIndex}, ${raIndex})" 
+                                style="padding: 2px 6px; font-size: 12px;">+ CL</button>
+                        <button type="button" class="btn btn-xs btn-outline-danger" 
+                                onclick="eliminarResultado(${filaIndex}, ${compIndex}, ${raIndex})" 
+                                style="padding: 2px 6px; font-size: 12px;">✕</button>
+                    </div>
+                </div>
+                <div class="criterios-container ps-3" data-fila="${filaIndex}" data-comp="${compIndex}" data-ra="${raIndex}">
+                    <!-- Los criterios de logro irán aquí -->
+                </div>
+            </div>`;
+        }
+
+        function plantillaCriterio(filaIndex, compIndex, raIndex, clIndex) {
+            return `
+            <div class="row g-2 mb-2 criterio-card" data-fila="${filaIndex}" data-comp="${compIndex}" data-ra="${raIndex}" data-cl="${clIndex}">
+                <div class="col-md-3">
+                    <input type="text" class="form-control form-control-sm campo-cl-codigo" 
+                           name="filas[${filaIndex}][competencias][${compIndex}][resultados][${raIndex}][criterios][${clIndex}][codigo]" 
+                           placeholder="Código (ej: CL1)" value="">
+                </div>
+                <div class="col">
+                    <input type="text" class="form-control form-control-sm campo-cl-desc" 
+                           name="filas[${filaIndex}][competencias][${compIndex}][resultados][${raIndex}][criterios][${clIndex}][descripcion]" 
+                           placeholder="Descripción criterio" value="">
+                </div>
+                <div class="col-auto">
+                    <button type="button" class="btn btn-xs btn-outline-danger" 
+                            onclick="eliminarCriterio(${filaIndex}, ${compIndex}, ${raIndex}, ${clIndex})" 
+                            style="padding: 2px 6px; font-size: 12px;">✕</button>
                 </div>
             </div>`;
         }
@@ -228,126 +413,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const node = tmp.firstChild;
             cont.appendChild(node);
 
-            // Obtener todos los collapses y sus botones
-            const allCollapses = Array.from(cont.querySelectorAll('.accordion-collapse'));
-            const allButtons = Array.from(cont.querySelectorAll('.accordion-button'));
+            filaCounter++;
+            colapsarTodas();
+            expandirUltima();
+        }
 
-            // Colapsar todos los demás (con transición)
-            allCollapses.forEach((c, idx) => {
-                if (c !== node.querySelector('.accordion-collapse') && c.classList.contains('show')) {
-                    c.classList.remove('show');
-                    if (allButtons[idx]) {
-                        allButtons[idx].classList.add('collapsed');
-                        allButtons[idx].setAttribute('aria-expanded', 'false');
-                    }
-                }
-            });
+        function colapsarTodas() {
+            const container = document.getElementById('filas-container');
+            const collapses = container.querySelectorAll('.accordion-collapse.show');
+            collapses.forEach(c => c.classList.remove('show'));
+        }
 
-            // Expandir la nueva fila después de la transición de cierre
-            setTimeout(() => {
-                const newCollapse = node.querySelector('.accordion-collapse');
-                const newButton = node.querySelector('.accordion-button');
-                newCollapse.classList.add('show');
-                newButton.classList.remove('collapsed');
-                newButton.setAttribute('aria-expanded', 'true');
-                // Scroll suave hacia la nueva fila
-                node.scrollIntoView({
+        function expandirUltima() {
+            const container = document.getElementById('filas-container');
+            const items = container.querySelectorAll('.accordion-item');
+            if (items.length > 0) {
+                const lastItem = items[items.length - 1];
+                const collapse = lastItem.querySelector('.accordion-collapse');
+                if (collapse) collapse.classList.add('show');
+                lastItem.scrollIntoView({
                     behavior: 'smooth',
                     block: 'center'
                 });
-            }, 100);
+            }
+        }
 
-            // Listeners para resumen
-            habilitarResumenFila(node);
+        function agregarCompetencia(filaIndex) {
+            const compContainer = document.querySelector(`.competencias-container[data-dominio-index="${filaIndex}"]`);
+            if (!compContainer) return;
 
-            filaCounter++;
-            reindexFilas();
+            const compCount = compContainer.querySelectorAll('.competencia-card').length;
+            const html = plantillaCompetencia(filaIndex, compCount);
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html.trim();
+            compContainer.appendChild(tmp.firstChild);
+        }
+
+        function eliminarCompetencia(filaIndex, compIndex) {
+            const card = document.querySelector(`.competencia-card[data-fila="${filaIndex}"][data-comp="${compIndex}"]`);
+            if (card) card.remove();
+        }
+
+        function agregarResultado(filaIndex, compIndex) {
+            const resultadosContainer = document.querySelector(`.resultados-container[data-fila="${filaIndex}"][data-comp="${compIndex}"]`);
+            if (!resultadosContainer) return;
+
+            const raCount = resultadosContainer.querySelectorAll('.resultado-card').length;
+            const html = plantillaResultado(filaIndex, compIndex, raCount);
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html.trim();
+            resultadosContainer.appendChild(tmp.firstChild);
+        }
+
+        function eliminarResultado(filaIndex, compIndex, raIndex) {
+            const card = document.querySelector(`.resultado-card[data-fila="${filaIndex}"][data-comp="${compIndex}"][data-ra="${raIndex}"]`);
+            if (card) card.remove();
+        }
+
+        function agregarCriterio(filaIndex, compIndex, raIndex) {
+            const criteriosContainer = document.querySelector(`.criterios-container[data-fila="${filaIndex}"][data-comp="${compIndex}"][data-ra="${raIndex}"]`);
+            if (!criteriosContainer) return;
+
+            const clCount = criteriosContainer.querySelectorAll('.criterio-card').length;
+            const html = plantillaCriterio(filaIndex, compIndex, raIndex, clCount);
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html.trim();
+            criteriosContainer.appendChild(tmp.firstChild);
+        }
+
+        function eliminarCriterio(filaIndex, compIndex, raIndex, clIndex) {
+            const card = document.querySelector(`.criterio-card[data-fila="${filaIndex}"][data-comp="${compIndex}"][data-ra="${raIndex}"][data-cl="${clIndex}"]`);
+            if (card) card.remove();
         }
 
         function eliminarFila(index) {
             const node = document.querySelector(`[data-index='${index}']`);
             if (node) node.remove();
-            reindexFilas();
         }
 
         function colapsarFila(index) {
-            const sel = `#filas-container .accordion-item[data-index='${index}']`;
-            const item = document.querySelector(sel);
-            if (!item) return;
-            actualizarResumenFila(item);
-            const body = item.querySelector('.accordion-collapse');
-            body.classList.remove('show');
-        }
-
-        function habilitarResumenFila(item) {
-            const selects = item.querySelectorAll('.campo-area');
-            const textos = item.querySelectorAll('.campo-dominio, .campo-competencia');
-            selects.forEach(s => s.addEventListener('change', () => actualizarResumenFila(item)));
-            textos.forEach(t => t.addEventListener('blur', () => actualizarResumenFila(item)));
-            actualizarResumenFila(item);
-        }
-
-        function actualizarResumenFila(item) {
-            const areaSel = item.querySelector('.campo-area');
-            const areaTxt = areaSel ? (areaSel.options[areaSel.selectedIndex]?.text || '').trim() : '';
-            const dom = (item.querySelector('.campo-dominio')?.value || '').trim();
-            const comp = (item.querySelector('.campo-competencia')?.value || '').trim();
-            const resumen = item.querySelector('.resumen-fila');
-            const partes = [];
-            if (areaTxt) partes.push(areaTxt);
-            if (dom) partes.push(dom.substring(0, 50) + (dom.length > 50 ? '…' : ''));
-            if (!partes.length && comp) partes.push(comp.substring(0, 50) + (comp.length > 50 ? '…' : ''));
-            resumen.textContent = partes.length ? `— ${partes.join(' | ')}` : '';
+            const item = document.querySelector(`.accordion-item[data-index='${index}']`);
+            if (item) {
+                const body = item.querySelector('.accordion-collapse');
+                if (body) body.classList.remove('show');
+            }
         }
 
         // Inserta una fila por defecto
-        document.addEventListener('DOMContentLoaded', agregarFila);
-
-        function reindexFilas() {
-            const cont = document.getElementById('filas-container');
-            const items = Array.from(cont.querySelectorAll('.accordion-item'));
-            items.forEach((item, i) => {
-                // Actualizar data-index
-                item.setAttribute('data-index', String(i));
-
-                // Actualizar IDs y atributos de acordeón
-                const newHeaderId = `filaHeader_${i}`;
-                const newBodyId = `filaBody_${i}`;
-                const header = item.querySelector('.accordion-header');
-                const button = item.querySelector('.accordion-button');
-                const collapse = item.querySelector('.accordion-collapse');
-                if (header) header.id = newHeaderId;
-                if (button) {
-                    button.setAttribute('data-bs-target', `#${newBodyId}`);
-                    button.setAttribute('aria-controls', newBodyId);
-                    // Actualizar texto "Fila N"
-                    const firstTextNode = button.firstChild;
-                    if (firstTextNode && firstTextNode.nodeType === Node.TEXT_NODE) {
-                        firstTextNode.textContent = `Fila ${i + 1} `;
-                    } else {
-                        button.insertBefore(document.createTextNode(`Fila ${i + 1} `), button.firstChild);
-                    }
-                }
-                if (collapse) {
-                    collapse.id = newBodyId;
-                    collapse.setAttribute('aria-labelledby', newHeaderId);
-                }
-
-                // Actualizar names de campos
-                const area = item.querySelector('.campo-area');
-                const dom = item.querySelector('.campo-dominio');
-                const comp = item.querySelector('.campo-competencia');
-                if (area) area.name = `filas[${i}][area_formacion_id]`;
-                if (dom) dom.name = `filas[${i}][dominio]`;
-                if (comp) comp.name = `filas[${i}][competencia]`;
-
-                // Actualizar botones inline
-                const btnCollapse = item.querySelector('button.btn-outline-secondary');
-                const btnDelete = item.querySelector('button.btn-outline-danger');
-                if (btnCollapse) btnCollapse.setAttribute('onclick', `colapsarFila(${i})`);
-                if (btnDelete) btnDelete.setAttribute('onclick', `eliminarFila(${i})`);
-            });
-        }
+        document.addEventListener('DOMContentLoaded', () => {
+            agregarFila();
+        });
     </script>
 
     <style>
@@ -368,6 +523,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .accordion-button:not(.collapsed) {
             background-color: #e7f1ff;
+        }
+
+        /* Botones pequeños */
+        .btn-xs {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+
+        /* Tarjetas de estructura jerárquica */
+        .competencia-card {
+            border-left: 4px solid #0d6efd;
+            background-color: #f8f9fa;
+        }
+
+        .competencia-card .card-header {
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .resultado-card {
+            border-left: 3px solid #0dcaf0;
+            background-color: #f0f7ff;
+            padding: 0.75rem;
+            border-radius: 0.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .criterio-card {
+            border-left: 2px solid #28a745;
+            background-color: #f0fdf4;
+            padding: 0.5rem 0;
+        }
+
+        .field-group {
+            background-color: rgba(255, 255, 255, 0.5);
+            padding: 0.5rem;
+            border-radius: 0.25rem;
         }
 
         /* Toast flotante */
@@ -470,35 +661,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     const filasContainer = document.getElementById('filas-container');
                     const filasItems = filasContainer.querySelectorAll('.accordion-item');
                     if (filasItems.length === 0) {
-                        mostrarToastError('Debe completar al menos una fila');
+                        mostrarToastError('Debe completar al menos un dominio');
                         return;
                     }
 
-                    // Validar que cada fila tenga dominio y competencia (ambos obligatorios)
+                    // Validar estructura de competencias
                     let filasValidas = 0;
                     for (let item of filasItems) {
                         const dominio = item.querySelector('.campo-dominio')?.value.trim() || '';
-                        const competencia = item.querySelector('.campo-competencia')?.value.trim() || '';
                         const area = item.querySelector('.campo-area')?.value || '';
 
-                        // Si hay contenido en al menos un campo
-                        if (dominio || competencia) {
-                            // Ambos campos son obligatorios
-                            if (!dominio || !competencia) {
-                                mostrarToastError('Los campos Dominio y Competencias son obligatorios en cada fila');
-                                return;
-                            }
+                        if (!dominio) continue;
 
-                            if (!area) {
-                                mostrarToastError('Debe seleccionar un área de formación en cada fila ingresada');
+                        if (!area) {
+                            mostrarToastError('Debe seleccionar un área de formación en cada dominio');
+                            return;
+                        }
+
+                        const competencias = item.querySelectorAll('.competencia-card');
+                        if (competencias.length === 0) {
+                            mostrarToastError('Cada dominio debe tener al menos una competencia');
+                            return;
+                        }
+
+                        let competenciasValidas = 0;
+                        for (let comp of competencias) {
+                            const codigo = comp.querySelector('.campo-comp-codigo')?.value.trim() || '';
+                            const desc = comp.querySelector('.campo-comp-desc')?.value.trim() || '';
+
+                            if (!codigo || !desc) {
+                                mostrarToastError('Todas las competencias deben tener código y descripción');
                                 return;
                             }
-                            filasValidas++;
+                            competenciasValidas++;
                         }
+
+                        if (competenciasValidas > 0) filasValidas++;
                     }
 
                     if (filasValidas === 0) {
-                        mostrarToastError('Debe completar al menos una fila con dominio y competencia');
+                        mostrarToastError('Debe completar al menos un dominio con competencias');
                         return;
                     }
 
@@ -520,7 +722,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         .then(data => {
                             if (data.success) {
                                 mostrarToastExito(data.message, 1500);
-                                // Redirigir después de 1.5 segundos
                                 setTimeout(() => {
                                     window.location.href = data.redirect;
                                 }, 1500);
