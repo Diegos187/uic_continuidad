@@ -17,6 +17,9 @@ $areaId    = isset($_GET['area_id']) ? (int)$_GET['area_id'] : null;
 $action    = isset($_GET['action']) ? trim($_GET['action']) : '';
 
 // Arrays de IDs - manejar correctamente arrays y valores únicos
+// detalle_id (perfil_egreso_detalle_id) opcional para filtrar por dominio específico
+$detalleId = isset($_GET['detalle_id']) ? (int)$_GET['detalle_id'] : null;
+
 $competenciaIds = [];
 if (isset($_GET['competencia_ids'])) {
     $val = $_GET['competencia_ids'];
@@ -53,15 +56,40 @@ try {
         exit;
     }
 
-    // 2) Competencias por área (nuevo)
+    // 2) Lista de dominios (perfil + área) para selector
+    if ($perfilId && $areaId && $action === 'dominios') {
+        $stmt = $conn->prepare('SELECT id, dominio FROM perfiles_egreso_detalle WHERE perfil_egreso_id = :pid AND area_formacion_id = :aid ORDER BY id ASC');
+        $stmt->bindValue(':pid', $perfilId, PDO::PARAM_INT);
+        $stmt->bindValue(':aid', $areaId, PDO::PARAM_INT);
+        $stmt->execute();
+        $dominios = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['dominios' => $dominios]);
+        exit;
+    }
+
+    // 3) Competencias por dominio específico (o por todos los dominios del área si no se pasa detalle_id)
     if ($perfilId && $areaId && $action === 'competencias') {
         $competenciaModel = new CompetenciaDominio($conn);
-        $competencias = $competenciaModel->obtenerPorDetalle($perfilId, $areaId);
+        $competencias = [];
+        if ($detalleId) {
+            $competencias = $competenciaModel->obtenerPorDetalle($detalleId);
+        } else {
+            // Reunir todos los perfiles_egreso_detalle del área y perfil
+            $stmt = $conn->prepare('SELECT id FROM perfiles_egreso_detalle WHERE perfil_egreso_id = :pid AND area_formacion_id = :aid');
+            $stmt->bindValue(':pid', $perfilId, PDO::PARAM_INT);
+            $stmt->bindValue(':aid', $areaId, PDO::PARAM_INT);
+            $stmt->execute();
+            $detalleIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($detalleIds as $did) {
+                $rows = $competenciaModel->obtenerPorDetalle((int)$did);
+                foreach ($rows as $r) { $competencias[] = $r; }
+            }
+        }
         echo json_encode(['competencias' => $competencias]);
         exit;
     }
 
-    // 3) Resultados por competencias seleccionadas (nuevo)
+    // 4) Resultados por competencias seleccionadas (nuevo)
     if ($perfilId && !empty($competenciaIds) && $action === 'resultados') {
         $resultadoModel = new ResultadoAprendizajeRef($conn);
         $resultados = [];
@@ -89,7 +117,7 @@ try {
         exit;
     }
 
-    // 4) Criterios por resultados seleccionados (nuevo)
+    // 5) Criterios por resultados seleccionados (nuevo)
     if ($perfilId && !empty($resultadoIds) && $action === 'criterios') {
         $criterioModel = new CriterioLogroRef($conn);
         $resultadoModel = new ResultadoAprendizajeRef($conn);
@@ -129,10 +157,9 @@ try {
         }
         echo json_encode(['criterios' => $criteriosUnicos]);
         exit;
-    }    // 5) Áreas por perfil
+    }    // 6) Áreas por perfil (sin duplicados; solo id y nombre)
     if ($perfilId && ($action === 'areas' || $action === 'areas_por_perfil' || empty($action))) {
-        $stmt = $conn->prepare('SELECT DISTINCT af.id, af.nombre AS descripcion, 
-                                       ped.dominio, ped.competencia
+        $stmt = $conn->prepare('SELECT DISTINCT af.id, af.nombre AS descripcion
                                  FROM perfiles_egreso_detalle ped
                                  INNER JOIN areas_formacion af ON af.id = ped.area_formacion_id
                                  WHERE ped.perfil_egreso_id = :pid
@@ -144,7 +171,7 @@ try {
         exit;
     }
 
-    // 6) Perfiles y versiones por carrera
+    // 7) Perfiles y versiones por carrera
     if ($carreraId) {
         // Perfiles
         $stmt = $conn->prepare('SELECT id, descripcion FROM perfiles_egreso WHERE carrera_id = :cid ORDER BY id DESC');

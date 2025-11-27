@@ -143,10 +143,8 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                     <button type="button" class="btn btn-sm btn-danger" title="Eliminar" data-bs-toggle="modal" data-bs-target="#modalEliminarMatriz<?php echo (int)$m['id']; ?>">Eliminar</button>
                                 </div>
                                 <div class="btn-group ms-2" role="group">
-                                    <a href="generar_matriz_word.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-outline-primary" title="Descargar Word (próximamente)">Word</a>
                                     <a href="generar_matriz_excel.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-outline-success" title="Descargar Excel">Excel</a>
                                     <a href="generar_matriz_tributacion.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-sm btn-outline-success" title="Descargar Matriz de Tributación">Tributación</a>
-                                    <a href="#" class="btn btn-sm btn-outline-danger" title="Descargar PDF (próximamente)">PDF</a>
                                 </div>
                                 <div class="btn-group ms-2" role="group">
                                     <button type="button" class="btn btn-sm btn-secondary" data-bs-toggle="modal" data-bs-target="#modalHistorialVersiones<?php echo (int)$m['id']; ?>" title="Ver historial de versiones">Historial de versiones</button>

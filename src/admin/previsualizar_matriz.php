@@ -464,9 +464,7 @@ $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_i
                 </div>
                 <div class="col-md-6">
                     <div class="btn-group-action">
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="window.print()">
-                            <i class="bi bi-printer"></i> Imprimir
-                        </button>
+
                         <a href="matrices.php?carrera_id=<?php echo urlencode($matriz['carrera_id']); ?>" class="btn btn-sm btn-secondary">
                             Volver
                         </a>
@@ -547,7 +545,17 @@ $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_i
                             <div class="field-row">
                                 <div class="field-group">
                                     <span class="field-label">Dominio</span>
-                                    <div class="field-value <?php echo empty($fila['dominio']) ? 'empty' : ''; ?>"><?php echo !empty($fila['dominio']) ? htmlspecialchars($fila['dominio']) : 'No especificado'; ?></div>
+                                    <div class="field-value <?php echo empty($fila['dominio']) && empty($fila['dominio_nombre']) && empty($fila['dominios_lista']) ? 'empty' : ''; ?>"><?php
+                                        $textoDominio = '';
+                                        if (!empty($fila['dominio'])) {
+                                            $textoDominio = $fila['dominio'];
+                                        } elseif (!empty($fila['dominios_lista'])) {
+                                            $textoDominio = $fila['dominios_lista'];
+                                        } elseif (!empty($fila['dominio_nombre'])) {
+                                            $textoDominio = $fila['dominio_nombre'];
+                                        }
+                                        echo $textoDominio !== '' ? nl2br(htmlspecialchars($textoDominio)) : 'No especificado';
+                                    ?></div>
                                 </div>
                                 <div class="field-group">
                                     <span class="field-label">Competencia</span>
@@ -611,10 +619,10 @@ $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_i
                                 <tr>
                                     <td class="row-number"><?php echo $index + 1; ?></td>
                                     <td><?php echo !empty($fila['asignatura_nombre']) ? htmlspecialchars($fila['asignatura_nombre']) : ((!empty($fila['asignatura_id']) ? htmlspecialchars($fila['asignatura_id']) : '')); ?></td>
-                                    <td><?php echo htmlspecialchars($fila['resultado_aprendizaje'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($fila['criterios_logro'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($fila['dominio'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($fila['competencia'] ?? ''); ?></td>
+                                    <td><?php echo nl2br(htmlspecialchars($fila['resultado_aprendizaje'] ?? '')); ?></td>
+                                    <td><?php echo nl2br(htmlspecialchars($fila['criterios_logro'] ?? '')); ?></td>
+                                    <td><?php echo nl2br(htmlspecialchars((($fila['dominio'] ?? '') !== '' ? $fila['dominio'] : (($fila['dominios_lista'] ?? '') !== '' ? $fila['dominios_lista'] : ($fila['dominio_nombre'] ?? ''))))); ?></td>
+                                    <td><?php echo nl2br(htmlspecialchars($fila['competencia'] ?? '')); ?></td>
                                     <td><?php echo htmlspecialchars($fila['contenidos'] ?? ''); ?></td>
                                     <td><?php echo htmlspecialchars($fila['bibliografia'] ?? ''); ?></td>
                                     <td><?php echo htmlspecialchars($fila['metodologias'] ?? ''); ?></td>

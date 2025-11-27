@@ -436,7 +436,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="accordion-item" data-index="${index}">
                 <h2 class="accordion-header" id="${headerId}">
                     <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="true" aria-controls="${collapseId}">
-                        Dominio ${index + 1} <span class="ms-2 text-muted resumen-fila"></span>
+                        <span class="fila-title">Dominio ${index + 1}</span>
+                        <span class="ms-2 text-muted resumen-fila"></span>
                     </button>
                 </h2>
                 <div id="${collapseId}" class="accordion-collapse collapse show" aria-labelledby="${headerId}" data-bs-parent="#filas-container">
@@ -488,9 +489,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                    placeholder="Código (ej: C1)" value="${codigo}">
                         </div>
                         <div class="col">
-                            <input type="text" class="form-control form-control-sm campo-comp-desc" 
+                            <textarea class="form-control form-control-sm campo-comp-desc auto-grow" 
                                    name="filas[${filaIndex}][competencias][${compIndex}][descripcion]" 
-                                   placeholder="Descripción competencia" value="${descripcion}">
+                                   placeholder="Descripción competencia" rows="1">${descripcion}</textarea>
                         </div>
                         <div class="col-auto">
                             <button type="button" class="btn btn-xs btn-outline-secondary" 
@@ -523,9 +524,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                placeholder="Código (ej: RA1)" value="${codigo}">
                     </div>
                     <div class="col">
-                        <input type="text" class="form-control form-control-sm campo-ra-desc" 
+                        <textarea class="form-control form-control-sm campo-ra-desc auto-grow" 
                                name="filas[${filaIndex}][competencias][${compIndex}][resultados][${raIndex}][descripcion]" 
-                               placeholder="Descripción resultado" value="${descripcion}">
+                               placeholder="Descripción resultado" rows="1">${descripcion}</textarea>
                     </div>
                     <div class="col-auto">
                         <button type="button" class="btn btn-xs btn-outline-secondary" 
@@ -556,9 +557,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            placeholder="Código (ej: CL1)" value="${codigo}">
                 </div>
                 <div class="col">
-                    <input type="text" class="form-control form-control-sm campo-cl-desc" 
+                    <textarea class="form-control form-control-sm campo-cl-desc auto-grow" 
                            name="filas[${filaIndex}][competencias][${compIndex}][resultados][${raIndex}][criterios][${clIndex}][descripcion]" 
-                           placeholder="Descripción criterio" value="${descripcion}">
+                           placeholder="Descripción criterio" rows="1">${descripcion}</textarea>
                 </div>
                 <div class="col-auto">
                     <button type="button" class="btn btn-xs btn-outline-danger" 
@@ -586,6 +587,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     agregarCompetencia(filaCounter, comp);
                 });
             }
+
+            // Actualiza el título del acordeón con "Área - Dominio"
+            const areaSelect = node.querySelector('.campo-area');
+            const dominioTextarea = node.querySelector('.campo-dominio');
+            const titleEl = node.querySelector('.fila-title');
+            const updateTitle = () => {
+                const areaText = areaSelect && areaSelect.value ? (areaSelect.options[areaSelect.selectedIndex].text || '').trim() : '';
+                const dominioText = (dominioTextarea && dominioTextarea.value || '').trim();
+                let title = `Dominio ${Array.from(document.querySelectorAll('.accordion-item')).indexOf(node) + 1}`;
+                if (areaText || dominioText) {
+                    title = `${areaText || 'Área sin seleccionar'} - ${dominioText || 'Dominio'}`;
+                }
+                if (titleEl) titleEl.textContent = title;
+            };
+            if (areaSelect) areaSelect.addEventListener('change', updateTitle);
+            if (dominioTextarea) dominioTextarea.addEventListener('input', updateTitle);
+            // inicial
+            updateTitle();
 
             filaCounter++;
             colapsarTodas();
@@ -703,6 +722,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (ESTRUCTURA_EXISTENTE.length === 0) {
                 agregarFila();
             }
+
+            // activar auto-grow
+            const initAutoGrow = () => {
+                const autos = document.querySelectorAll('.auto-grow');
+                autos.forEach(el => {
+                    const resize = () => { el.style.height = 'auto'; el.style.height = (el.scrollHeight) + 'px'; };
+                    el.addEventListener('input', resize);
+                    resize();
+                });
+            };
+            initAutoGrow();
+            document.addEventListener('click', (e) => {
+                if (e.target && (e.target.matches('[onclick^="agregarCompetencia"]') || e.target.matches('[onclick^="agregarResultado"]') || e.target.matches('[onclick^="agregarCriterio"]'))) {
+                    setTimeout(initAutoGrow, 50);
+                }
+            });
         });
     </script>
 

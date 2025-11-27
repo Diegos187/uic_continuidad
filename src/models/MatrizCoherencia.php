@@ -13,12 +13,12 @@ class MatrizCoherencia
     {
         try {
             $query = "INSERT INTO " . $this->tabla . " 
-        (matriz_id, asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
+        (matriz_id, asignatura_id, area_formacion_id, perfil_egreso_id, perfil_egreso_detalle_id, version_id,
         dominio, competencia, resultado_aprendizaje,
         criterios_logro, contenidos, bibliografia,
         metodologias, estrategias, sct_chile) 
                     VALUES 
-        (:matriz_id, :asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
+        (:matriz_id, :asignatura_id, :area_formacion_id, :perfil_egreso_id, :perfil_egreso_detalle_id, :version_id,
         :dominio, :competencia, :resultado_aprendizaje,
         :criterios_logro, :contenidos, :bibliografia,
         :metodologias, :estrategias, :sct_chile)";
@@ -31,6 +31,7 @@ class MatrizCoherencia
             $area_formacion_id = isset($datos['area_formacion_id']) && $datos['area_formacion_id'] !== '' ? (int)$datos['area_formacion_id'] : null;
             $perfil_egreso_id = isset($datos['perfil_egreso_id']) && $datos['perfil_egreso_id'] !== '' ? (int)$datos['perfil_egreso_id'] : null;
             $version_id = isset($datos['version_id']) && $datos['version_id'] !== '' ? (int)$datos['version_id'] : null;
+            $perfil_egreso_detalle_id = isset($datos['perfil_egreso_detalle_id']) && $datos['perfil_egreso_detalle_id'] !== '' ? (int)$datos['perfil_egreso_detalle_id'] : null;
             $dominio = $datos['dominio'] ?? null;
             $competencia = $datos['competencia'] ?? null;
             $resultado_aprendizaje = $datos['resultado_aprendizaje'] ?? null;
@@ -56,6 +57,11 @@ class MatrizCoherencia
                 $stmt->bindValue(':perfil_egreso_id', null, PDO::PARAM_NULL);
             } else {
                 $stmt->bindValue(':perfil_egreso_id', $perfil_egreso_id, PDO::PARAM_INT);
+            }
+            if ($perfil_egreso_detalle_id === null) {
+                $stmt->bindValue(':perfil_egreso_detalle_id', null, PDO::PARAM_NULL);
+            } else {
+                $stmt->bindValue(':perfil_egreso_detalle_id', $perfil_egreso_detalle_id, PDO::PARAM_INT);
             }
             if ($version_id === null) {
                 $stmt->bindValue(':version_id', null, PDO::PARAM_NULL);
@@ -112,13 +118,13 @@ class MatrizCoherencia
         try {
             $this->conexion->beginTransaction();
 
-            $query = "INSERT INTO " . $this->tabla . " 
-                    (matriz_id, asignatura_id, area_formacion_id, perfil_egreso_id, version_id,
+                $query = "INSERT INTO " . $this->tabla . " 
+                    (matriz_id, asignatura_id, area_formacion_id, perfil_egreso_id, perfil_egreso_detalle_id, version_id,
                     dominio, competencia, resultado_aprendizaje,
                     criterios_logro, contenidos, bibliografia,
                     metodologias, estrategias, sct_chile) 
                     VALUES 
-                    (:matriz_id, :asignatura_id, :area_formacion_id, :perfil_egreso_id, :version_id,
+                    (:matriz_id, :asignatura_id, :area_formacion_id, :perfil_egreso_id, :perfil_egreso_detalle_id, :version_id,
                     :dominio, :competencia, :resultado_aprendizaje,
                     :criterios_logro, :contenidos, :bibliografia,
                     :metodologias, :estrategias, :sct_chile)";
@@ -132,6 +138,7 @@ class MatrizCoherencia
                 $area_formacion_id = isset($fila['area_formacion_id']) && $fila['area_formacion_id'] !== '' ? (int)$fila['area_formacion_id'] : null;
                 $perfil_egreso_id = isset($fila['perfil_egreso_id']) && $fila['perfil_egreso_id'] !== '' ? (int)$fila['perfil_egreso_id'] : null;
                 $version_id = isset($fila['version_id']) && $fila['version_id'] !== '' ? (int)$fila['version_id'] : null;
+                $perfil_egreso_detalle_id = isset($fila['perfil_egreso_detalle_id']) && $fila['perfil_egreso_detalle_id'] !== '' ? (int)$fila['perfil_egreso_detalle_id'] : null;
                 $dominio = $fila['dominio'] ?? null;
                 $competencia = $fila['competencia'] ?? null;
                 $resultado_aprendizaje = $fila['resultado_aprendizaje'] ?? null;
@@ -157,6 +164,11 @@ class MatrizCoherencia
                     $stmt->bindValue(':perfil_egreso_id', null, PDO::PARAM_NULL);
                 } else {
                     $stmt->bindValue(':perfil_egreso_id', $perfil_egreso_id, PDO::PARAM_INT);
+                }
+                if ($perfil_egreso_detalle_id === null) {
+                    $stmt->bindValue(':perfil_egreso_detalle_id', null, PDO::PARAM_NULL);
+                } else {
+                    $stmt->bindValue(':perfil_egreso_detalle_id', $perfil_egreso_detalle_id, PDO::PARAM_INT);
                 }
                 if ($version_id === null) {
                     $stmt->bindValue(':version_id', null, PDO::PARAM_NULL);
@@ -248,10 +260,21 @@ class MatrizCoherencia
     {
         try {
             $query = "SELECT mc.*, a.nombre AS asignatura_nombre, a.carrera_id,
-                             af.nombre AS area_formacion_nombre
+                             af.nombre AS area_formacion_nombre,
+                             ped.dominio AS dominio_nombre,
+                             (
+                                SELECT GROUP_CONCAT(DISTINCT ped2.dominio SEPARATOR '\n')
+                                FROM matriz_tributacion mt
+                                JOIN criterios_logro_ref cl ON cl.id = mt.criterio_logro_id
+                                JOIN resultados_aprendizaje_ref ra ON ra.id = cl.resultado_aprendizaje_id
+                                JOIN competencias_dominio cd ON cd.id = ra.competencia_dominio_id
+                                JOIN perfiles_egreso_detalle ped2 ON ped2.id = cd.perfil_egreso_detalle_id
+                                WHERE mt.matriz_coherencia_id = mc.id
+                             ) AS dominios_lista
                       FROM " . $this->tabla . " mc
                       JOIN asignaturas a ON a.id = mc.asignatura_id
                       LEFT JOIN areas_formacion af ON af.id = mc.area_formacion_id
+                      LEFT JOIN perfiles_egreso_detalle ped ON ped.id = mc.perfil_egreso_detalle_id
                       WHERE mc.matriz_id = :matriz_id AND mc.version_id = :version_id
                       ORDER BY mc.id ASC";
             $stmt = $this->conexion->prepare($query);

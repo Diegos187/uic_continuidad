@@ -107,16 +107,83 @@ $sheet->setCellValue('K2', 'BIBLIOGRAFÍA');
 
 $fila = 3;
 foreach ($filasMatriz as $ma) {
+    $mcid = (int)($ma['id'] ?? 0);
+    $dominioEstructurado = '';
+    $competenciasEstructuradas = '';
+    $resultadosEstructurados = '';
+    $criteriosEstructurados = '';
+
+    if ($mcid > 0) {
+        $sqlDetalle = "SELECT ped.id AS dominio_id, ped.dominio AS dominio_nombre,
+                               c.id AS comp_id, c.codigo AS comp_codigo, c.descripcion AS comp_desc,
+                               ra.id AS ra_id, ra.codigo AS ra_codigo, ra.descripcion AS ra_desc,
+                               cl.id AS cl_id, cl.codigo AS cl_codigo, cl.descripcion AS cl_desc
+                        FROM matriz_tributacion mt
+                        JOIN criterios_logro_ref cl ON cl.id = mt.criterio_logro_id
+                        JOIN resultados_aprendizaje_ref ra ON ra.id = cl.resultado_aprendizaje_id
+                        JOIN competencias_dominio c ON c.id = ra.competencia_dominio_id
+                        JOIN perfiles_egreso_detalle ped ON ped.id = c.perfil_egreso_detalle_id
+                        WHERE mt.matriz_coherencia_id = :mcid
+                        ORDER BY ped.id, c.orden, ra.orden, cl.orden";
+        $stmtDet = $conexion->prepare($sqlDetalle);
+        $stmtDet->bindValue(':mcid', $mcid, PDO::PARAM_INT);
+        if ($stmtDet->execute()) {
+            $rowsDet = $stmtDet->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($rowsDet)) {
+                $byDomain = [];
+                foreach ($rowsDet as $rd) {
+                    $dId = (int)$rd['dominio_id'];
+                    if (!isset($byDomain[$dId])) {
+                        $byDomain[$dId] = [
+                            'nombre' => $rd['dominio_nombre'] ?? 'Dominio',
+                            'competencias' => [],
+                            'resultados' => [],
+                            'criterios' => []
+                        ];
+                    }
+                    $compKey = $rd['comp_codigo'] . ' - ' . $rd['comp_desc'];
+                    $raKey = $rd['ra_codigo'] . ' - ' . $rd['ra_desc'];
+                    $critKey = $rd['cl_codigo'] . ' - ' . $rd['cl_desc'];
+                    $byDomain[$dId]['competencias'][$compKey] = true;
+                    $byDomain[$dId]['resultados'][$raKey] = true;
+                    $byDomain[$dId]['criterios'][$critKey] = true;
+                }
+                // Construir textos multi-bloque
+                $domParts = [];
+                $compParts = [];
+                $raParts = [];
+                $critParts = [];
+                foreach ($byDomain as $d) {
+                    $domParts[] = $d['nombre'];
+                    $compParts[] = '[' . $d['nombre'] . "]\n" . implode("\n", array_keys($d['competencias']));
+                    $raParts[] = '[' . $d['nombre'] . "]\n" . implode("\n", array_keys($d['resultados']));
+                    $critParts[] = '[' . $d['nombre'] . "]\n" . implode("\n", array_keys($d['criterios']));
+                }
+                $dominioEstructurado = implode("\n\n", $domParts);
+                $competenciasEstructuradas = implode("\n\n", $compParts);
+                $resultadosEstructurados = implode("\n\n", $raParts);
+                $criteriosEstructurados = implode("\n\n", $critParts);
+            }
+        }
+    }
     // Campos provenientes de obtenerPorCarrera():
     // - area_formacion_nombre (puede ser null)
     // - asignatura_nombre
     // - dominio, competencia, resultado_aprendizaje, criterios_logro,
     //   contenidos, metodologias, estrategias, sct_chile, bibliografia
     $sheet->setCellValue("A{$fila}", $ma['area_formacion_nombre'] ?? '');
-    $sheet->setCellValue("B{$fila}", $ma['dominio']);
-    $sheet->setCellValue("C{$fila}", $ma['competencia']);
-    $sheet->setCellValue("D{$fila}", $ma['resultado_aprendizaje']);
-    $sheet->setCellValue("E{$fila}", $ma['criterios_logro']);
+    $dominioExcel = '';
+    if (!empty($ma['dominio'])) {
+        $dominioExcel = $ma['dominio'];
+    } elseif (!empty($ma['dominios_lista'])) {
+        $dominioExcel = $ma['dominios_lista'];
+    } elseif (!empty($ma['dominio_nombre'])) {
+        $dominioExcel = $ma['dominio_nombre'];
+    }
+    $sheet->setCellValue("B{$fila}", $dominioEstructurado !== '' ? $dominioEstructurado : $dominioExcel);
+    $sheet->setCellValue("C{$fila}", $competenciasEstructuradas !== '' ? $competenciasEstructuradas : $ma['competencia']);
+    $sheet->setCellValue("D{$fila}", $resultadosEstructurados !== '' ? $resultadosEstructurados : $ma['resultado_aprendizaje']);
+    $sheet->setCellValue("E{$fila}", $criteriosEstructurados !== '' ? $criteriosEstructurados : $ma['criterios_logro']);
     $sheet->setCellValue("F{$fila}", $ma['contenidos']);
     $sheet->setCellValue("G{$fila}", $ma['asignatura_nombre']);
     $sheet->setCellValue("H{$fila}", $ma['sct_chile']);

@@ -6,6 +6,9 @@ require_once '../../src/models/VersionMatriz.php';
 require_once '../../src/models/Asignatura.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../src/models/Matriz.php';
+require_once '../../src/models/CompetenciaDominio.php';
+require_once '../../src/models/ResultadoAprendizajeRef.php';
+require_once '../../src/models/CriterioLogroRef.php';
 require_once '../../includes/functions.php';
 
 verificarSesion();
@@ -17,6 +20,9 @@ $carrera = new Carrera($conexion);
 $matriz = new MatrizCoherencia($conexion);
 $versiones = new VersionMatriz($conexion);
 $matrizGeneral = new Matriz($conexion);
+$competenciaModel = new CompetenciaDominio($conexion);
+$resultadoModel = new ResultadoAprendizajeRef($conexion);
+$criterioModel = new CriterioLogroRef($conexion);
 
 $error = '';
 $success = '';
@@ -63,12 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             $valores = array_map(function ($v) {
                 return is_string($v) ? trim($v) : $v;
             }, $fila);
+            // Considerar selección de criterios como dato mínimo
             $todosVacios = true;
-            foreach (['dominio', 'competencia', 'resultado_aprendizaje', 'actividad_curricular_id', 'criterios_logro', 'contenidos', 'bibliografia', 'metodologias', 'estrategias', 'sct_chile'] as $k) {
-                if (!empty($valores[$k])) {
-                    $todosVacios = false;
-                    break;
-                }
+            foreach (['actividad_curricular_id', 'contenidos', 'bibliografia', 'metodologias', 'estrategias', 'sct_chile', 'criterios_ids'] as $k) {
+                if (!empty($valores[$k])) { $todosVacios = false; break; }
             }
             if ($todosVacios) {
                 continue;
@@ -79,16 +83,67 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             // Resolver asignatura de la fila desde actividad curricular seleccionada
             $asignaturaIdFila = isset($fila['actividad_curricular_id']) ? (int)limpiarDatos($fila['actividad_curricular_id']) : null;
 
+            // Selecciones de la UI (checkboxes)
+            $competenciasSeleccionadas = isset($fila['competencias_ids']) ? (is_array($fila['competencias_ids']) ? array_map('intval', $fila['competencias_ids']) : [ (int)$fila['competencias_ids'] ]) : [];
+            $resultadosSeleccionados = isset($fila['resultados_ids']) ? (is_array($fila['resultados_ids']) ? array_map('intval', $fila['resultados_ids']) : [ (int)$fila['resultados_ids'] ]) : [];
+            $criteriosSeleccionados = isset($fila['criterios_ids']) ? (is_array($fila['criterios_ids']) ? array_map('intval', $fila['criterios_ids']) : [ (int)$fila['criterios_ids'] ]) : [];
+            $perfil_detalle_id = isset($fila['perfil_egreso_detalle_id']) && $fila['perfil_egreso_detalle_id'] !== '' ? (int)limpiarDatos($fila['perfil_egreso_detalle_id']) : null;
+
+            // Validación mínima
+            if (empty($asignaturaIdFila)) { continue; }
+            if (empty($criteriosSeleccionados)) { $error = 'Debe seleccionar al menos un Criterio de Logro por fila.'; break; }
+
+            // Construir textos agregados
+            $competenciasTexto = [];
+            foreach ($competenciasSeleccionadas as $cid) {
+                $cdata = $competenciaModel->obtenerPorId($cid);
+                if ($cdata) { $competenciasTexto[] = trim(($cdata['codigo'] ?? '') . ' - ' . ($cdata['descripcion'] ?? '')); }
+            }
+            $resultadosTexto = [];
+            foreach ($resultadosSeleccionados as $rid) {
+                $rdata = $resultadoModel->obtenerPorId($rid);
+                if ($rdata) { $resultadosTexto[] = trim(($rdata['codigo'] ?? '') . ' - ' . ($rdata['descripcion'] ?? '')); }
+            }
+            $criteriosTexto = [];
+            foreach ($criteriosSeleccionados as $crid) {
+                $crdata = $criterioModel->obtenerPorId($crid);
+                if ($crdata) { $criteriosTexto[] = trim(($crdata['codigo'] ?? '') . ' - ' . ($crdata['descripcion'] ?? '')); }
+            }
+            // Recuperar texto de dominio/competencia base desde el detalle de perfil si está presente
+            $dominioBase = null;
+            $competenciaBase = null;
+            if ($perfil_detalle_id) {
+                try {
+                    $stmtDet = $conexion->prepare('SELECT dominio, competencia FROM perfiles_egreso_detalle WHERE id = :did');
+                    $stmtDet->bindValue(':did', (int)$perfil_detalle_id, PDO::PARAM_INT);
+                    $stmtDet->execute();
+                    $rowDet = $stmtDet->fetch(PDO::FETCH_ASSOC);
+                    if ($rowDet) {
+                        $dominioBase = $rowDet['dominio'] ?? null;
+                        $competenciaBase = $rowDet['competencia'] ?? null;
+                    }
+                } catch (Exception $e) {
+                    error_log('Error obteniendo detalle de perfil: ' . $e->getMessage());
+                }
+            }
+            $competenciaAgregada = implode("\n", $competenciasTexto);
+            $resultadosAgregados = implode("\n", $resultadosTexto);
+            $criteriosAgregados = implode("\n", $criteriosTexto);
+
             $filas[] = [
                 'matriz_id' => $matriz_id,
                 'asignatura_id' => $asignaturaIdFila,
                 'area_formacion_id' => isset($fila['area_formacion_id']) ? limpiarDatos($fila['area_formacion_id']) : null,
                 'perfil_egreso_id' => $perfil_superior ?: (isset($fila['perfil_egreso_id']) ? limpiarDatos($fila['perfil_egreso_id']) : null),
+                'perfil_egreso_detalle_id' => $perfil_detalle_id,
                 'version_id' => $version_id,
-                'dominio' => isset($fila['dominio']) ? limpiarDatos($fila['dominio']) : null,
-                'competencia' => isset($fila['competencia']) ? limpiarDatos($fila['competencia']) : null,
-                'resultado_aprendizaje' => isset($fila['resultado_aprendizaje']) ? limpiarDatos($fila['resultado_aprendizaje']) : null,
-                'criterios_logro' => isset($fila['criterios_logro']) ? limpiarDatos($fila['criterios_logro']) : null,
+                'dominio' => $dominioBase,
+                'competencia' => $competenciaAgregada ?: $competenciaBase,
+                'resultado_aprendizaje' => $resultadosAgregados,
+                'criterios_logro' => $criteriosAgregados,
+                'competencias_ids' => $competenciasSeleccionadas,
+                'resultados_ids' => $resultadosSeleccionados,
+                'criterios_ids' => $criteriosSeleccionados,
                 'contenidos' => isset($fila['contenidos']) ? limpiarDatos($fila['contenidos']) : null,
                 'bibliografia' => isset($fila['bibliografia']) ? limpiarDatos($fila['bibliografia']) : null,
                 'metodologias' => isset($fila['metodologias']) ? limpiarDatos($fila['metodologias']) : null,
@@ -330,17 +385,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                                     ${optionMarkupId(atributosCache.areasPorPerfil, 'Seleccione un área')}
                                 </select>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Dominio</label>
-                                <textarea class="form-control campo-dominio" name="filas[${index}][dominio]" rows="2" disabled style="background-color: #e9ecef;"></textarea>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Competencia</label>
-                                <textarea class="form-control campo-competencia" name="filas[${index}][competencia]" rows="2" disabled style="background-color: #e9ecef;"></textarea>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Dominios</label>
+                                <div id="dominios-${index}" class="dominios-checkboxes" data-index="${index}"></div>
                             </div>
                             <div class="col-md-12 mb-3">
-                                <label class="form-label">Resultado de Aprendizaje</label>
-                                <textarea class="form-control campo-resultado" id="campo-resultado-${index}" name="filas[${index}][resultado_aprendizaje]" rows="2" required></textarea>
+                                <label class="form-label">Competencias, Resultados y Criterios por Dominio</label>
+                                <ul class="nav nav-tabs" id="domTabs-${index}" role="tablist" style="margin-bottom:8px;"></ul>
+                                <div class="tab-content" id="domTabsContent-${index}">
+                                    <div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>
+                                </div>
                             </div>
                         </div>
 
@@ -351,10 +405,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                             </select>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Criterios de Logro</label>
-                            <textarea class="form-control" name="filas[${index}][criterios_logro]" rows="2" required></textarea>
-                        </div>
+                        
 
                         <div class="mb-3">
                             <label class="form-label">Contenidos/Saberes</label>
@@ -526,31 +577,205 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
 
         function onAreaChange(select) {
             const item = select.closest('.accordion-item');
+            const index = item.getAttribute('data-index');
+            const perfilId = document.getElementById('perfil_id').value;
             const areaId = select.value;
-            const campoDominio = item.querySelector('.campo-dominio');
-            const campoCompetencia = item.querySelector('.campo-competencia');
 
-            if (!areaId) {
-                if (campoDominio) campoDominio.value = '';
-                if (campoCompetencia) campoCompetencia.value = '';
-                autoResizeTextarea(campoDominio);
-                autoResizeTextarea(campoCompetencia);
-                actualizarResumenFila(item);
+            // Limpiar tabs
+            const tabs = item.querySelector(`#domTabs-${index}`);
+            const tabsContent = item.querySelector(`#domTabsContent-${index}`);
+            if (tabs) tabs.innerHTML = '';
+            if (tabsContent) tabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>';
+
+            // Limpiar dominios
+            const domCont = item.querySelector('.dominios-checkboxes');
+            if (domCont) domCont.innerHTML = '';
+
+            if (!perfilId || !areaId) return;
+
+            // Cargar dominios por perfil y área
+            fetch(`../../src/api/atributos.php?action=dominios&perfil_id=${perfilId}&area_id=${areaId}`)
+                .then(r => r.json())
+                .then(data => {
+                    const dominios = data.dominios || [];
+                    renderDominios(item, dominios);
+                })
+                .catch(err => console.error('Error cargando dominios:', err));
+        }
+
+        function renderDominios(item, dominios) {
+            const index = item.getAttribute('data-index');
+            const cont = item.querySelector(`#dominios-${index}`);
+            const tabs = item.querySelector(`#domTabs-${index}`);
+            const tabsContent = item.querySelector(`#domTabsContent-${index}`);
+            if (!cont || !tabs || !tabsContent) return;
+
+            const html = dominios.map(d => {
+                const id = String(d.id);
+                const desc = (d.dominio || d.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                return `<div class="form-check form-check-inline me-3">
+                    <input class="form-check-input dominio-checkbox" type="checkbox" value="${id}" id="dom_${index}_${id}" data-index="${index}" data-detalle-id="${id}" data-descripcion="${desc}">
+                    <label class="form-check-label" for="dom_${index}_${id}">${desc}</label>
+                </div>`;
+            }).join('');
+            cont.innerHTML = html || '<div class="text-muted">No hay dominios para el área seleccionada.</div>';
+
+            // Evento de cambio para crear pestañas al seleccionar dominios
+            cont.querySelectorAll('.dominio-checkbox').forEach(chk => {
+                chk.addEventListener('change', function() {
+                    const detalleId = this.getAttribute('data-detalle-id');
+                    const domId = `dom_${index}_${detalleId}`;
+                    const desc = this.getAttribute('data-descripcion') || `Dominio ${detalleId}`;
+                    if (this.checked) {
+                        addDominioTab(index, detalleId, domId, tabs, tabsContent, desc);
+                        cargarCompetenciasResultadosCriterios(item, detalleId);
+                    } else {
+                        removeDominioTab(index, detalleId, tabs, tabsContent);
+                    }
+                });
+            });
+        }
+
+        function addDominioTab(index, detalleId, domId, tabs, tabsContent, descripcionTab = null) {
+            const tabId = `tab_${index}_${detalleId}`;
+            const paneId = `pane_${index}_${detalleId}`;
+            // Tab header
+            const li = document.createElement('li');
+            li.className = 'nav-item';
+            const label = descripcionTab ? descripcionTab : `Dominio ${detalleId}`;
+            li.innerHTML = `<button class="nav-link" id="${tabId}" data-bs-toggle="tab" data-bs-target="#${paneId}" type="button" role="tab" aria-controls="${paneId}" aria-selected="false">${label}</button>`;
+            tabs.appendChild(li);
+            // Tab content pane
+            const div = document.createElement('div');
+            div.className = 'tab-pane fade p-2';
+            div.id = paneId;
+            div.setAttribute('role', 'tabpanel');
+            div.innerHTML = `
+                <div class="mb-2"><strong>Competencias</strong></div>
+                <div class="alert alert-light border p-3 mb-3">
+                    <div id="competencias-${index}-${detalleId}" class="competencias-checkboxes"></div>
+                </div>
+                <div class="mb-2"><strong>Resultados de Aprendizaje</strong></div>
+                <div class="alert alert-light border p-3 mb-3">
+                    <div id="resultados-${index}-${detalleId}" class="resultados-checkboxes"></div>
+                </div>
+                <div class="mb-2"><strong>Criterios de Logro</strong></div>
+                <div class="alert alert-light border p-3 mb-3">
+                    <div id="criterios-${index}-${detalleId}" class="criterios-checkboxes"></div>
+                </div>
+                <input type="hidden" name="filas[${index}][perfil_egreso_detalle_id]" value="${detalleId}">
+            `;
+            tabsContent.appendChild(div);
+
+            // Activar nueva pestaña
+            const triggerEl = div.previousElementSibling ? li.querySelector('.nav-link') : li.querySelector('.nav-link');
+            const tab = new bootstrap.Tab(triggerEl);
+            tab.show();
+        }
+
+        function removeDominioTab(index, detalleId, tabs, tabsContent) {
+            const tabId = `tab_${index}_${detalleId}`;
+            const paneId = `pane_${index}_${detalleId}`;
+            const tabBtn = tabs.querySelector(`#${tabId}`);
+            const pane = tabsContent.querySelector(`#${paneId}`);
+            if (tabBtn) tabBtn.closest('li').remove();
+            if (pane) pane.remove();
+        }
+
+        function cargarCompetenciasResultadosCriterios(item, detalleId) {
+            const index = item.getAttribute('data-index');
+            const paneId = `pane_${index}_${detalleId}`;
+            const pane = item.querySelector(`#${paneId}`);
+            if (!pane) return;
+
+            // Competencias por detalle (alineado con agregar_matriz)
+            fetch(`../../src/api/atributos.php?action=competencias&perfil_id=${document.getElementById('perfil_id').value}&area_id=${item.querySelector('.campo-area').value}&detalle_id=${detalleId}`)
+                .then(r => r.json())
+                .then(data => {
+                    const comps = data.competencias || [];
+                    const compCont = pane.querySelector(`#competencias-${index}-${detalleId}`);
+                    compCont.innerHTML = (comps.map(c => {
+                        const id = String(c.id);
+                        const desc = (c.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        const codigo = (c.codigo || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        return `<div class="form-check">
+                            <input class="form-check-input competencia-checkbox" type="checkbox" value="${id}" id="comp_${index}_${detalleId}_${id}" name="filas[${index}][competencias_ids][]">
+                            <label class="form-check-label" for="comp_${index}_${detalleId}_${id}"><strong>${codigo}</strong> — ${desc}</label>
+                        </div>`;
+                    }).join('')) || '<div class="text-muted">Sin competencias.</div>';
+
+                    // Después de competencias, cargar resultados en función de seleccionadas
+                    pane.querySelectorAll('.competencia-checkbox').forEach(chk => {
+                        chk.addEventListener('change', () => cargarResultados(item, detalleId));
+                    });
+                })
+                .catch(err => console.error('Error cargando competencias:', err));
+        }
+
+        function cargarResultados(item, detalleId) {
+            const index = item.getAttribute('data-index');
+            const paneId = `pane_${index}_${detalleId}`;
+            const pane = item.querySelector(`#${paneId}`);
+            if (!pane) return;
+            const compChecks = pane.querySelectorAll('.competencia-checkbox:checked');
+            const compIds = Array.from(compChecks).map(el => el.value);
+            const resCont = pane.querySelector(`#resultados-${index}-${detalleId}`);
+            resCont.innerHTML = '';
+            const critCont = pane.querySelector(`#criterios-${index}-${detalleId}`);
+            critCont.innerHTML = '';
+            if (compIds.length === 0) {
+                resCont.innerHTML = '<div class="text-muted">Seleccione competencias para ver resultados.</div>';
                 return;
             }
+            fetch(`../../src/api/atributos.php?action=resultados&perfil_id=${document.getElementById('perfil_id').value}&competencia_ids=${encodeURIComponent(compIds.join(','))}`)
+                .then(r => r.json())
+                .then(data => {
+                    const resultados = data.resultados || [];
+                    resCont.innerHTML = (resultados.map(r => {
+                        const id = String(r.id);
+                        const desc = (r.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        const codigo = (r.codigo || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        return `<div class="form-check">
+                            <input class="form-check-input resultado-checkbox" type="checkbox" value="${id}" id="res_${index}_${detalleId}_${id}" name="filas[${index}][resultados_ids][]">
+                            <label class="form-check-label" for="res_${index}_${detalleId}_${id}"><strong>${codigo}</strong> — ${desc}</label>
+                        </div>`;
+                    }).join('')) || '<div class="text-muted">Sin resultados.</div>';
 
-            // Buscar área en caché
-            const area = atributosCache.areasPorPerfil.find(a => String(a.id) === String(areaId));
-            if (area) {
-                const dominioText = area.dominio || '';
-                const competenciaText = area.competencia || '';
-                if (campoDominio) campoDominio.value = dominioText;
-                if (campoCompetencia) campoCompetencia.value = competenciaText;
-                // Auto-ajustar altura
-                autoResizeTextarea(campoDominio);
-                autoResizeTextarea(campoCompetencia);
-                actualizarResumenFila(item);
+                    pane.querySelectorAll('.resultado-checkbox').forEach(chk => {
+                        chk.addEventListener('change', () => cargarCriterios(item, detalleId));
+                    });
+                })
+                .catch(err => console.error('Error cargando resultados:', err));
+        }
+
+        function cargarCriterios(item, detalleId) {
+            const index = item.getAttribute('data-index');
+            const paneId = `pane_${index}_${detalleId}`;
+            const pane = item.querySelector(`#${paneId}`);
+            if (!pane) return;
+            const resChecks = pane.querySelectorAll('.resultado-checkbox:checked');
+            const resIds = Array.from(resChecks).map(el => el.value);
+            const critCont = pane.querySelector('.criterios-checkboxes');
+            critCont.innerHTML = '';
+            if (resIds.length === 0) {
+                critCont.innerHTML = '<div class="text-muted">Seleccione resultados para ver criterios.</div>';
+                return;
             }
+            fetch(`../../src/api/atributos.php?action=criterios&perfil_id=${document.getElementById('perfil_id').value}&resultado_ids=${encodeURIComponent(resIds.join(','))}`)
+                .then(r => r.json())
+                .then(data => {
+                    const criterios = data.criterios || [];
+                    critCont.innerHTML = (criterios.map(c => {
+                        const id = String(c.id);
+                        const desc = (c.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        const codigo = (c.codigo || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        return `<div class="form-check">
+                            <input class="form-check-input criterio-check" type="checkbox" value="${id}" id="crit_${index}_${detalleId}_${id}" name="filas[${index}][criterios_ids][]">
+                            <label class="form-check-label" for="crit_${index}_${detalleId}_${id}"><strong>${codigo}</strong> — ${desc}</label>
+                        </div>`;
+                    }).join('')) || '<div class="text-muted">Sin criterios.</div>';
+                })
+                .catch(err => console.error('Error cargando criterios:', err));
         }
 
         // Validación del formulario antes de submit
@@ -673,12 +898,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
 
         // Cargar perfiles al abrir la página
         window.addEventListener('DOMContentLoaded', () => {
-            // Inicializar validación para todos los campos de Resultado de Aprendizaje
-            document.querySelectorAll('textarea.campo-resultado').forEach((campo) => {
-                if (campo.id) {
-                    ValidadorEstructura.inicializarCampo(campo.id, 'resultado');
-                }
-            });
+            // No hay campos de resultado tipo textarea en nueva versión
 
             // Agregar manejador del formulario para AJAX
             const form = document.querySelector('form');
@@ -686,28 +906,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 form.addEventListener('submit', function(e) {
                     e.preventDefault();
                     if (validarFormulario()) {
-                        // Copiar valores de campos disabled a campos hidden antes de enviar
-                        document.querySelectorAll('textarea.campo-dominio, textarea.campo-competencia').forEach((campo, idx) => {
-                            const hiddenDominio = document.querySelector(`input[name="filas[${campo.name.match(/\[(\d+)\]/)[1]}][dominio_value]"]`);
-                            const hiddenCompetencia = document.querySelector(`input[name="filas[${campo.name.match(/\[(\d+)\]/)[1]}][competencia_value]"]`);
-
-                            if (campo.classList.contains('campo-dominio') && !hiddenDominio) {
-                                const index = campo.name.match(/\[(\d+)\]/)[1];
-                                const hidden = document.createElement('input');
-                                hidden.type = 'hidden';
-                                hidden.name = `filas[${index}][dominio]`;
-                                hidden.value = campo.value;
-                                form.appendChild(hidden);
-                            }
-                            if (campo.classList.contains('campo-competencia') && !hiddenCompetencia) {
-                                const index = campo.name.match(/\[(\d+)\]/)[1];
-                                const hidden = document.createElement('input');
-                                hidden.type = 'hidden';
-                                hidden.name = `filas[${index}][competencia]`;
-                                hidden.value = campo.value;
-                                form.appendChild(hidden);
-                            }
-                        });
+                        // No necesitamos copiar textareas deshabilitadas
 
                         // Enviar por AJAX
                         const formData = new FormData(form);
@@ -749,10 +948,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                         });
                         perfil_id_select.innerHTML = opts.join('');
                         perfil_id_select.disabled = false;
+                        // Cargar áreas después de elegir perfil
+                        perfil_id_select.addEventListener('change', cargarAreasPorPerfil);
                     })
                     .catch(err => console.error('Error cargando perfiles:', err));
             }
         });
+
+        // Validación actualizada para checkboxes
+        function validarFormulario() {
+            const descripcionVersion = document.getElementById('descripcion_version').value.trim();
+            const perfilId = document.getElementById('perfil_id').value.trim();
+
+            if (!perfilId) { mostrarToastError('Debe seleccionar un Perfil de egreso.'); return false; }
+            if (!descripcionVersion) { mostrarToastError('Debe ingresar un Nombre/Descripción para la nueva versión.'); return false; }
+
+            const items = document.querySelectorAll('.accordion-item');
+            if (items.length === 0) { mostrarToastError('Debe agregar al menos una fila con datos.'); return false; }
+
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                const areaEl = item.querySelector('.campo-area');
+                const actividadEl = item.querySelector('.campo-actividad');
+                const criteriosChecks = item.querySelectorAll('.criterios-checkboxes input.criterio-check:checked');
+                if (!areaEl || !areaEl.value) { mostrarToastError(`Fila ${i+1}: Debe seleccionar un Área de formación.`); areaEl && areaEl.focus(); return false; }
+                if (!actividadEl || !actividadEl.value) { mostrarToastError(`Fila ${i+1}: Debe seleccionar una Actividad Curricular.`); actividadEl && actividadEl.focus(); return false; }
+                if (criteriosChecks.length === 0) { mostrarToastError(`Fila ${i+1}: Debe seleccionar al menos un Criterio de Logro.`); return false; }
+            }
+            return true;
+        }
     </script>
 </body>
 
