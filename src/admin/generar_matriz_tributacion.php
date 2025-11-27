@@ -216,10 +216,48 @@ foreach ($areasInfo as $ai) {
     }
 }
 
-// Ajustar anchos
-$sheet->getColumnDimension('A')->setWidth(11);
-$sheet->getColumnDimension('B')->setWidth(28);
-for ($c = 3; $c < $colIndex; $c++) { $sheet->getColumnDimension(colLetter($c))->setWidth(4.2); }
+// Ajustar anchos mejorados (competencias/resultados algo más anchos que criterios)
+$sheet->getColumnDimension('A')->setWidth(11); // Semestre
+$sheet->getColumnDimension('B')->setWidth(30); // Actividad Curricular
+for ($c = 3; $c < $colIndex; $c++) {
+    $letter = colLetter($c);
+    // Heurística: fila 4 = competencias, fila 5 = resultados, fila 6 = criterios
+    $valorFila4 = $sheet->getCell($letter . '4')->getValue();
+    $valorFila5 = $sheet->getCell($letter . '5')->getValue();
+    $valorFila6 = $sheet->getCell($letter . '6')->getValue();
+    if ($valorFila4 && !$valorFila5 && !$valorFila6) { // columna completa de competencia (merged en 4)
+        $sheet->getColumnDimension($letter)->setWidth(8); // más espacio para código comp
+    } elseif ($valorFila5 && !$valorFila6) { // resultado (merged en 5)
+        $sheet->getColumnDimension($letter)->setWidth(7);
+    } elseif ($valorFila6) { // criterio individual
+        $sheet->getColumnDimension($letter)->setWidth(5.5);
+    } else { // dominio o área subdividida
+        $sheet->getColumnDimension($letter)->setWidth(6);
+    }
+}
+
+// Colorear distintos niveles para mejorar legibilidad
+$sheet->getStyle('A3:' . $maxColLetter . '3')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'DBE5F1']]]); // Dominios
+$sheet->getStyle('A4:' . $maxColLetter . '4')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'E9EEF5']]]); // Competencias
+$sheet->getStyle('A5:' . $maxColLetter . '5')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'F2F5F9']]]); // Resultados
+$sheet->getStyle('A6:' . $maxColLetter . '6')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'FFFFFF']]]); // Criterios
+
+// Negrita solo códigos en filas 4,5,6 (evita sobrecarga si hay textos largos)
+for ($c = 3; $c < $colIndex; $c++) {
+    $letter = colLetter($c);
+    foreach ([4,5,6] as $r) {
+        $val = $sheet->getCell($letter . $r)->getValue();
+        if ($val) {
+            $sheet->getStyle($letter . $r)->getFont()->setBold(true);
+        }
+    }
+}
+
+// Ajustar altura de filas de encabezado para evitar solapamiento
+$sheet->getRowDimension(3)->setRowHeight(32);
+$sheet->getRowDimension(4)->setRowHeight(28);
+$sheet->getRowDimension(5)->setRowHeight(28);
+$sheet->getRowDimension(6)->setRowHeight(22);
 
 // Render de filas: todas las asignaturas independientemente del área
 $row = 7;
@@ -239,10 +277,19 @@ foreach ($filas as $fa) {
         }
     }
     $sheet->getStyle('A' . $row . ':' . $maxColLetter . $row)->applyFromArray([
-        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
         'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
     ]);
+    // Actividad Curricular alineada a la izquierda, permitir wrap
     $sheet->getStyle('B' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+    $sheet->getStyle('B' . $row)->getAlignment()->setWrapText(true);
+    // Marcar X en negrita para mejor visibilidad
+    foreach ($criteriosMarcadosPorFila[$mcid] ?? [] as $critid) {
+        if (isset($ai['critColMap'][$critid])) {
+            $colL = colLetter($ai['critColMap'][$critid]);
+            $sheet->getStyle($colL . $row)->getFont()->setBold(true);
+        }
+    }
     $row++;
 }
 
