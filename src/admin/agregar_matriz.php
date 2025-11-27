@@ -104,9 +104,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $perfil_superior = isset($_POST['perfil_id']) ? (int)limpiarDatos($_POST['perfil_id']) : null;
 
                     // Procesar competencias seleccionadas
-                    $competenciasSeleccionadas = isset($fila['competencias_ids']) && is_array($fila['competencias_ids']) ? array_map('intval', $fila['competencias_ids']) : [];
-                    $resultadosSeleccionados = isset($fila['resultados_ids']) && is_array($fila['resultados_ids']) ? array_map('intval', $fila['resultados_ids']) : [];
-                    $criteriosSeleccionados = isset($fila['criterios_ids']) && is_array($fila['criterios_ids']) ? array_map('intval', $fila['criterios_ids']) : [];
+                    $competenciasSeleccionadas = isset($fila['competencias_ids']) ? (is_array($fila['competencias_ids']) ? array_map('intval', $fila['competencias_ids']) : [ (int)$fila['competencias_ids'] ]) : [];
+                    $resultadosSeleccionados = isset($fila['resultados_ids']) ? (is_array($fila['resultados_ids']) ? array_map('intval', $fila['resultados_ids']) : [ (int)$fila['resultados_ids'] ]) : [];
+                    $criteriosSeleccionados = isset($fila['criterios_ids']) ? (is_array($fila['criterios_ids']) ? array_map('intval', $fila['criterios_ids']) : [ (int)$fila['criterios_ids'] ]) : [];
+
+                    // Construir textos agregados para competencia / resultados / criterios
+                    $competenciasTexto = [];
+                    foreach ($competenciasSeleccionadas as $cid) {
+                        $cdata = $competenciaModel->obtenerPorId($cid);
+                        if ($cdata) {
+                            $competenciasTexto[] = trim(($cdata['codigo'] ?? '') . ' - ' . ($cdata['descripcion'] ?? ''));
+                        }
+                    }
+                    $resultadosTexto = [];
+                    foreach ($resultadosSeleccionados as $rid) {
+                        $rdata = $resultadoModel->obtenerPorId($rid);
+                        if ($rdata) {
+                            $resultadosTexto[] = trim(($rdata['codigo'] ?? '') . ' - ' . ($rdata['descripcion'] ?? ''));
+                        }
+                    }
+                    $criteriosTexto = [];
+                    foreach ($criteriosSeleccionados as $crid) {
+                        $crdata = $criterioModel->obtenerPorId($crid);
+                        if ($crdata) {
+                            $criteriosTexto[] = trim(($crdata['codigo'] ?? '') . ' - ' . ($crdata['descripcion'] ?? ''));
+                        }
+                    }
+                    $competenciaAgregada = implode("\n", $competenciasTexto);
+                    $resultadosAgregados = implode("\n", $resultadosTexto);
+                    $criteriosAgregados = implode("\n", $criteriosTexto);
 
                     $filas[] = [
                         'matriz_id' => $matriz_id_creada,
@@ -115,7 +141,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         'perfil_egreso_id' => $perfil_superior ?: (isset($fila['perfil_egreso_id']) ? limpiarDatos($fila['perfil_egreso_id']) : null),
                         'version_id' => $version_id,
                         'dominio' => $dominio,
-                        'competencia' => $competencia,
+                        // Reemplazar campo competencia simple por listado agregado
+                        'competencia' => $competenciaAgregada,
+                        'resultado_aprendizaje' => $resultadosAgregados,
+                        'criterios_logro' => $criteriosAgregados,
                         'competencias_ids' => $competenciasSeleccionadas,
                         'resultados_ids' => $resultadosSeleccionados,
                         'criterios_ids' => $criteriosSeleccionados,
@@ -633,7 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             html += `
                             <div class="form-check">
                                 <input class="form-check-input competencia-checkbox" type="checkbox" value="${comp.id}" 
-                                       id="comp_${index}_${comp.id}" name="filas[${index}][competencias_ids]" 
+                                       id="comp_${index}_${comp.id}" name="filas[${index}][competencias_ids][]" 
                                        onchange="cargarResultados(${index})">
                                 <label class="form-check-label" for="comp_${index}_${comp.id}">
                                     ${comp.codigo} - ${comp.descripcion}
@@ -724,8 +753,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             porCompetencia[compId].forEach(res => {
                                 html += `<div style="margin-bottom: 8px; margin-left: 12px;">
                                     <div class="form-check">
-                                        <input class="form-check-input resultado-checkbox" type="checkbox" value="${res.id}" 
-                                               id="res_${index}_${res.id}" name="filas[${index}][resultados_ids]" 
+                                             <input class="form-check-input resultado-checkbox" type="checkbox" value="${res.id}" 
+                                                 id="res_${index}_${res.id}" name="filas[${index}][resultados_ids][]" 
                                                data-competencia="${res.competencia_dominio_id}"
                                                onchange="cargarCriterios(${index})">
                                         <label class="form-check-label" for="res_${index}_${res.id}" style="margin-bottom: 0; cursor: pointer;">
@@ -829,8 +858,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 const codigoCompleto = `${competenciaCode} > ${resData.codigo}.${crit.codigo}`;
                                 html += `<div style="margin-bottom: 8px; margin-left: 12px;">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" value="${crit.id}" 
-                                               id="crit_${index}_${crit.id}" name="filas[${index}][criterios_ids]"
+                                             <input class="form-check-input" type="checkbox" value="${crit.id}" 
+                                                 id="crit_${index}_${crit.id}" name="filas[${index}][criterios_ids][]"
                                                data-resultado="${crit.resultado_aprendizaje_ref_id}">
                                         <label class="form-check-label" for="crit_${index}_${crit.id}" style="margin-bottom: 0; cursor: pointer;">
                                             <strong style="color: #0c63e4;">${codigoCompleto}</strong> - ${crit.descripcion}
