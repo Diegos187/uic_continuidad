@@ -108,7 +108,8 @@ $sheet->setCellValue('K2', 'BIBLIOGRAFÍA');
 $fila = 3;
 foreach ($filasMatriz as $ma) {
     $mcid = (int)($ma['id'] ?? 0);
-    $domainGroups = []; // dominio_id => ['nombre'=>..., 'competencias'=>[], 'resultados'=>[], 'criterios'=>[]]
+    // Estructura jerárquica: Dominio → Competencia → Resultado → Criterio
+    $domainTree = []; // dominio_id => ['nombre'=>..., 'competencias'=>[comp_id=>{codigo,descripcion,resultados}]]
 
     if ($mcid > 0) {
         $sqlDetalle = "SELECT ped.id AS dominio_id, ped.dominio AS dominio_nombre,
@@ -128,112 +129,179 @@ foreach ($filasMatriz as $ma) {
             $rowsDet = $stmtDet->fetchAll(\PDO::FETCH_ASSOC);
             foreach ($rowsDet as $rd) {
                 $dId = (int)$rd['dominio_id'];
-                if (!isset($domainGroups[$dId])) {
-                    $domainGroups[$dId] = [
+                if (!isset($domainTree[$dId])) {
+                    $domainTree[$dId] = [
                         'nombre' => $rd['dominio_nombre'] ?? 'Dominio',
-                        'competencias' => [],
-                        'resultados' => [],
+                        'competencias' => []
+                    ];
+                }
+                // Parse códigos como "C1 - desc", "RA1 - desc", "CL1 - desc"
+                $compCode = $rd['comp_codigo'];
+                $compDesc = $rd['comp_desc'];
+                $raCode = $rd['ra_codigo'];
+                $raDesc = $rd['ra_desc'];
+                $clCode = $rd['cl_codigo'];
+                $clDesc = $rd['cl_desc'];
+
+                $compKey = $compCode; // usar código como clave estable
+                if (!isset($domainTree[$dId]['competencias'][$compKey])) {
+                    $domainTree[$dId]['competencias'][$compKey] = [
+                        'codigo' => $compCode,
+                        'descripcion' => $compDesc,
+                        'resultados' => []
+                    ];
+                }
+                $resKey = $raCode;
+                if (!isset($domainTree[$dId]['competencias'][$compKey]['resultados'][$resKey])) {
+                    $domainTree[$dId]['competencias'][$compKey]['resultados'][$resKey] = [
+                        'codigo' => $raCode,
+                        'descripcion' => $raDesc,
                         'criterios' => []
                     ];
                 }
-                $domainGroups[$dId]['competencias'][$rd['comp_codigo'] . ' - ' . $rd['comp_desc']] = true;
-                $domainGroups[$dId]['resultados'][$rd['ra_codigo'] . ' - ' . $rd['ra_desc']] = true;
-                $domainGroups[$dId]['criterios'][$rd['cl_codigo'] . ' - ' . $rd['cl_desc']] = true;
+                $domainTree[$dId]['competencias'][$compKey]['resultados'][$resKey]['criterios'][$clCode] = [
+                    'codigo' => $clCode,
+                    'descripcion' => $clDesc
+                ];
             }
         }
     }
 
     // Si no hay dominios (fila sin tributación), crear un grupo único usando campos planos.
-    if (empty($domainGroups)) {
+    if (empty($domainTree)) {
         $nombreDominioPlano = '';
         if (!empty($ma['dominio'])) { $nombreDominioPlano = $ma['dominio']; }
         elseif (!empty($ma['dominios_lista'])) { $nombreDominioPlano = $ma['dominios_lista']; }
         elseif (!empty($ma['dominio_nombre'])) { $nombreDominioPlano = $ma['dominio_nombre']; }
-        $domainGroups[-1] = [
+        // Estructura plana: una competencia y un resultado, criterios como lista
+        $domainTree[-1] = [
             'nombre' => $nombreDominioPlano !== '' ? $nombreDominioPlano : 'Sin dominio',
-            'competencias' => array_filter(array_map('trim', explode("\n", $ma['competencia'] ?? ''))),
-            'resultados' => array_filter(array_map('trim', explode("\n", $ma['resultado_aprendizaje'] ?? ''))),
-            'criterios' => array_filter(array_map('trim', explode("\n", $ma['criterios_logro'] ?? '')))
+            'competencias' => []
         ];
+        $compText = trim((string)($ma['competencia'] ?? ''));
+        if ($compText !== '') {
+            $domainTree[-1]['competencias'][$compText] = [
+                'codigo' => $compText,
+                'descripcion' => '',
+                'resultados' => []
+            ];
+            $raText = trim((string)($ma['resultado_aprendizaje'] ?? ''));
+            $domainTree[-1]['competencias'][$compText]['resultados'][$raText] = [
+                'codigo' => $raText,
+                'descripcion' => '',
+                'criterios' => []
+            ];
+            $criteriosList = array_filter(array_map('trim', explode("\n", (string)($ma['criterios_logro'] ?? ''))));
+            foreach ($criteriosList as $crit) {
+                $domainTree[-1]['competencias'][$compText]['resultados'][$raText]['criterios'][$crit] = [
+                    'codigo' => $crit,
+                    'descripcion' => ''
+                ];
+            }
+        }
     }
 
     $startRow = $fila;
-    foreach ($domainGroups as $dg) {
-        $sheet->setCellValue("A{$fila}", $ma['area_formacion_nombre'] ?? '');
-        $sheet->setCellValue("B{$fila}", $dg['nombre']);
-        $compRaw = implode("\n", array_keys($dg['competencias']));
-        $resRaw = implode("\n", array_keys($dg['resultados']));
-        $critRaw = implode("\n", array_keys($dg['criterios']));
-        $sheet->setCellValue("C{$fila}", $compRaw);
-        $sheet->setCellValue("D{$fila}", $resRaw);
-        $sheet->setCellValue("E{$fila}", $critRaw);
-        $sheet->setCellValue("F{$fila}", $ma['contenidos']);
-        $sheet->setCellValue("G{$fila}", $ma['asignatura_nombre']);
-        $sheet->setCellValue("H{$fila}", $ma['sct_chile']);
-        $sheet->setCellValue("I{$fila}", $ma['metodologias']);
-        $sheet->setCellValue("J{$fila}", $ma['estrategias']);
-        $sheet->setCellValue("K{$fila}", $ma['bibliografia']);
-
-        $sheet->getStyle("A{$fila}:K{$fila}")->applyFromArray([
-            'alignment' => [
-                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT,
-                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP,
-                'wrapText' => true,
-            ],
-            'borders' => [
-                'allBorders' => [
-                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                ],
-            ],
-        ]);
-        // Center Área de formación (A) and Dominio (B) horizontally + vertically
-        $sheet->getStyle("A{$fila}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle("A{$fila}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-        $sheet->getStyle("B{$fila}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle("B{$fila}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-        $sheet->getRowDimension($fila)->setRowHeight(-1);
-
-        // Rich text bold for codes (before ' - ') in C,D,E
-        foreach (['C'=>$compRaw,'D'=>$resRaw,'E'=>$critRaw] as $col=>$raw) {
-            if ($raw === '') continue;
-            $lines = explode("\n", $raw);
-            $rich = new \PhpOffice\PhpSpreadsheet\RichText\RichText();
-            foreach ($lines as $i=>$line) {
-                if ($line === '') { $rich->createText("\n"); continue; }
-                $parts = explode(' - ', $line, 2);
-                $codePart = $parts[0];
-                $descPart = $parts[1] ?? '';
-                $codeRun = $rich->createTextRun($codePart);
-                $codeRun->getFont()->setBold(true);
-                if ($descPart !== '') {
-                    $rich->createText(' - ' . $descPart);
+    // Expandir por Dominio → Competencia → Resultado (una fila por RA)
+    foreach ($domainTree as $dId => $dg) {
+        $domainStart = $fila;
+        $compStarts = [];
+        foreach ($dg['competencias'] as $cKey => $comp) {
+            $compStart = $fila;
+            foreach ($comp['resultados'] as $rKey => $ra) {
+                // Criterios del RA como líneas
+                $critLines = [];
+                foreach ($ra['criterios'] as $clKey => $cl) {
+                    $desc = $cl['descripcion'] !== '' ? (' - ' . $cl['descripcion']) : '';
+                    $critLines[] = $cl['codigo'] . $desc;
                 }
-                if ($i < count($lines)-1) {
-                    $rich->createText("\n");
+                $critRaw = implode("\n", $critLines);
+
+                // Escribir fila
+                $sheet->setCellValue("A{$fila}", $ma['area_formacion_nombre'] ?? '');
+                $sheet->setCellValue("B{$fila}", $dg['nombre']);
+                $sheet->setCellValue("C{$fila}", $comp['codigo'] . ($comp['descripcion'] !== '' ? (' - ' . $comp['descripcion']) : ''));
+                $sheet->setCellValue("D{$fila}", $ra['codigo'] . ($ra['descripcion'] !== '' ? (' - ' . $ra['descripcion']) : ''));
+                $sheet->setCellValue("E{$fila}", $critRaw);
+                $sheet->setCellValue("F{$fila}", $ma['contenidos']);
+                $sheet->setCellValue("G{$fila}", $ma['asignatura_nombre']);
+                $sheet->setCellValue("H{$fila}", $ma['sct_chile']);
+                $sheet->setCellValue("I{$fila}", $ma['metodologias']);
+                $sheet->setCellValue("J{$fila}", $ma['estrategias']);
+                $sheet->setCellValue("K{$fila}", $ma['bibliografia']);
+
+                $sheet->getStyle("A{$fila}:K{$fila}")->applyFromArray([
+                    'alignment' => [
+                        'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT,
+                        'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP,
+                        'wrapText' => true,
+                    ],
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                        ],
+                    ],
+                ]);
+                $sheet->getRowDimension($fila)->setRowHeight(-1);
+
+                // Rich text bold para códigos en C,D,E
+                foreach (['C'=>$comp['codigo'] . ($comp['descripcion'] !== '' ? (' - ' . $comp['descripcion']) : ''),
+                          'D'=>$ra['codigo'] . ($ra['descripcion'] !== '' ? (' - ' . $ra['descripcion']) : ''),
+                          'E'=>$critRaw] as $col=>$raw) {
+                    if ($raw === '') continue;
+                    $lines = explode("\n", $raw);
+                    $rich = new \PhpOffice\PhpSpreadsheet\RichText\RichText();
+                    foreach ($lines as $i=>$line) {
+                        if ($line === '') { $rich->createText("\n"); continue; }
+                        $parts = explode(' - ', $line, 2);
+                        $codePart = $parts[0];
+                        $descPart = $parts[1] ?? '';
+                        $codeRun = $rich->createTextRun($codePart);
+                        $codeRun->getFont()->setBold(true);
+                        if ($descPart !== '') {
+                            $rich->createText(' - ' . $descPart);
+                        }
+                        if ($i < count($lines)-1) {
+                            $rich->createText("\n");
+                        }
+                    }
+                    $sheet->setCellValue("{$col}{$fila}", $rich);
                 }
+
+                $fila++;
             }
-            $sheet->setCellValue("{$col}{$fila}", $rich);
+            $compStarts[] = [$compStart, $fila - 1];
         }
-        $fila++;
-    }
-    $endRow = $fila - 1;
-    // Unir Área de formación y Actividad / SCT para visualizar que pertenecen al mismo registro base.
-    if ($endRow > $startRow) {
-        $sheet->mergeCells("A{$startRow}:A{$endRow}");
-        $sheet->mergeCells("F{$startRow}:F{$endRow}");
-        $sheet->mergeCells("G{$startRow}:G{$endRow}");
-        $sheet->mergeCells("H{$startRow}:H{$endRow}");
-        $sheet->mergeCells("I{$startRow}:I{$endRow}");
-        $sheet->mergeCells("J{$startRow}:J{$endRow}");
-        $sheet->mergeCells("K{$startRow}:K{$endRow}");
-        // Centrar verticalmente las celdas fusionadas
-        $sheet->getStyle("A{$startRow}:A{$endRow}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-        // Center merged Área de formación cell horizontally as well
-        $sheet->getStyle("A{$startRow}:A{$endRow}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        foreach (['F','G','H','I','J','K'] as $colMerge) {
-            $sheet->getStyle("{$colMerge}{$startRow}:{$colMerge}{$endRow}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
+        $domainEnd = $fila - 1;
+
+        // Unir Dominio (B) para todas las filas del dominio
+        if ($domainEnd >= $domainStart) {
+            $sheet->mergeCells("B{$domainStart}:B{$domainEnd}");
+            $sheet->getStyle("B{$domainStart}:B{$domainEnd}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("B{$domainStart}:B{$domainEnd}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        }
+        // Unir Área de formación (A) también
+        if ($domainEnd >= $domainStart) {
+            $sheet->mergeCells("A{$domainStart}:A{$domainEnd}");
+            $sheet->getStyle("A{$domainStart}:A{$domainEnd}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("A{$domainStart}:A{$domainEnd}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        }
+        // Unir Competencia (C) por bloque
+        foreach ($compStarts as [$cs, $ce]) {
+            if ($ce >= $cs) {
+                $sheet->mergeCells("C{$cs}:C{$ce}");
+                $sheet->getStyle("C{$cs}:C{$ce}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
+            }
+        }
+        // Unir comunes F..K por todo el dominio
+        if ($domainEnd >= $domainStart) {
+            foreach (['F','G','H','I','J','K'] as $colMerge) {
+                $sheet->mergeCells("{$colMerge}{$domainStart}:{$colMerge}{$domainEnd}");
+                $sheet->getStyle("{$colMerge}{$domainStart}:{$colMerge}{$domainEnd}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
+            }
         }
     }
+    // Las fusiones por dominio ya se manejan en el bucle anterior
 }
 
 $writer = new Xlsx($spreadSheet);

@@ -289,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-12">
                                         <label for="perfil_id" class="form-label">Perfil de egreso</label>
-                                        <select class="form-select" id="perfil_id" name="perfil_id" required disabled onchange="cargarAreasPorPerfil()">
+                                        <select class="form-select" id="perfil_id" name="perfil_id" required disabled onchange="onPerfilChange()">
                                             <option value="">Seleccione un perfil</option>
                                         </select>
                                     </div>
@@ -385,9 +385,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                                     ${optionMarkupId(atributosCache.areasPorPerfil, 'Seleccione un área')}
                                 </select>
                             </div>
-                            <div class="col-md-12 mb-3">
+                            <div class="col-md-8 mb-3">
                                 <label class="form-label">Dominios</label>
-                                <div id="dominios-${index}" class="dominios-checkboxes" data-index="${index}"></div>
+                                <div id="dominios-${index}" class="dominios-checkboxes" data-index="${index}" style="border: 1px solid #dee2e6; padding: 10px; border-radius: 6px; background: #f7f9fc;">
+                                    <p class="text-muted mb-0 small">Seleccione un área primero</p>
+                                </div>
                             </div>
                             <div class="col-md-12 mb-3">
                                 <label class="form-label">Competencias, Resultados y Criterios por Dominio</label>
@@ -395,6 +397,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                                 <div class="tab-content" id="domTabsContent-${index}">
                                     <div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>
                                 </div>
+                                    <div class="tab-content" id="domTabsContent-${index}"></div>
                             </div>
                         </div>
 
@@ -575,6 +578,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 .catch(err => console.error('Error cargando áreas:', err));
         }
 
+        // Reset completo al cambiar Perfil de egreso
+        function onPerfilChange() {
+            // Limpiar todas las filas: área, dominios, pestañas, selecciones dependientes
+            document.querySelectorAll('#filas-container .accordion-item').forEach(item => {
+                const idx = item.getAttribute('data-index');
+                // Reset área y deshabilitar hasta cargar
+                const selArea = item.querySelector('.campo-area');
+                if (selArea) { selArea.value = ''; selArea.disabled = true; selArea.innerHTML = '<option value="">Seleccione un área</option>'; }
+                // Dominios
+                const domCont = item.querySelector(`#dominios-${idx}`);
+                if (domCont) domCont.innerHTML = '';
+                // Tabs
+                const tabs = item.querySelector(`#domTabs-${idx}`);
+                const tabsContent = item.querySelector(`#domTabsContent-${idx}`);
+                if (tabs) tabs.innerHTML = '';
+                if (tabsContent) tabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>';
+                    if (tabsContent) tabsContent.innerHTML = '';
+                // Desmarcar selecciones
+                item.querySelectorAll('.dominio-checkbox, .competencia-checkbox, .resultado-checkbox, .criterio-check').forEach(cb => { cb.checked = false; });
+                // Limpiar selección de actividad curricular, mantener opciones
+                const selAct = item.querySelector('.campo-actividad');
+                if (selAct) { selAct.value = ''; selAct.disabled = false; }
+            });
+            // Cargar áreas del nuevo perfil
+            cargarAreasPorPerfil();
+        }
+
         function onAreaChange(select) {
             const item = select.closest('.accordion-item');
             const index = item.getAttribute('data-index');
@@ -586,10 +616,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             const tabsContent = item.querySelector(`#domTabsContent-${index}`);
             if (tabs) tabs.innerHTML = '';
             if (tabsContent) tabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>';
+                if (tabsContent) tabsContent.innerHTML = '';
 
             // Limpiar dominios
             const domCont = item.querySelector('.dominios-checkboxes');
-            if (domCont) domCont.innerHTML = '';
+            if (domCont) domCont.innerHTML = '<div class="text-muted">Cargando dominios…</div>';
+
+            // Desmarcar selecciones previas
+            item.querySelectorAll('.competencia-checkbox, .resultado-checkbox, .criterio-check').forEach(cb => { cb.checked = false; });
 
             if (!perfilId || !areaId) return;
 
@@ -613,9 +647,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             const html = dominios.map(d => {
                 const id = String(d.id);
                 const desc = (d.dominio || d.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                return `<div class="form-check form-check-inline me-3">
+                return `<div class="form-check" style="margin:6px 0; display:flex; align-items:center; gap:8px;">
                     <input class="form-check-input dominio-checkbox" type="checkbox" value="${id}" id="dom_${index}_${id}" data-index="${index}" data-detalle-id="${id}" data-descripcion="${desc}">
-                    <label class="form-check-label" for="dom_${index}_${id}">${desc}</label>
+                    <label class="form-check-label" for="dom_${index}_${id}" style="margin:0;">${desc}</label>
                 </div>`;
             }).join('');
             cont.innerHTML = html || '<div class="text-muted">No hay dominios para el área seleccionada.</div>';
@@ -642,7 +676,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             // Tab header
             const li = document.createElement('li');
             li.className = 'nav-item';
-            const label = descripcionTab ? descripcionTab : `Dominio ${detalleId}`;
+            let label = descripcionTab ? descripcionTab : `Dominio ${detalleId}`;
+            const maxLen = 18;
+            if (label.length > maxLen) label = label.substring(0, maxLen - 3) + '...';
             li.innerHTML = `<button class="nav-link" id="${tabId}" data-bs-toggle="tab" data-bs-target="#${paneId}" type="button" role="tab" aria-controls="${paneId}" aria-selected="false">${label}</button>`;
             tabs.appendChild(li);
             // Tab content pane
@@ -696,11 +732,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                     const compCont = pane.querySelector(`#competencias-${index}-${detalleId}`);
                     compCont.innerHTML = (comps.map(c => {
                         const id = String(c.id);
-                        const desc = (c.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                        const codigo = (c.codigo || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        let desc = (c.descripcion || '').toString();
+                        const code = (c.codigo || '').toString();
+                        // Quitar código duplicado al inicio
+                        const esc = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const patterns = [new RegExp('^' + esc + '\\s*-\\s*', 'i'), new RegExp('^' + esc + '\\s+', 'i')];
+                        patterns.forEach(p => { desc = desc.replace(p, ''); });
+                        const safeDesc = desc.replace(/</g,'&lt;').replace(/>/g,'&gt;');
                         return `<div class="form-check">
                             <input class="form-check-input competencia-checkbox" type="checkbox" value="${id}" id="comp_${index}_${detalleId}_${id}" name="filas[${index}][competencias_ids][]">
-                            <label class="form-check-label" for="comp_${index}_${detalleId}_${id}"><strong>${codigo}</strong> — ${desc}</label>
+                            <label class="form-check-label" for="comp_${index}_${detalleId}_${id}"><strong>${code}</strong> - ${safeDesc}</label>
                         </div>`;
                     }).join('')) || '<div class="text-muted">Sin competencias.</div>';
 
@@ -731,15 +772,57 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 .then(r => r.json())
                 .then(data => {
                     const resultados = data.resultados || [];
-                    resCont.innerHTML = (resultados.map(r => {
-                        const id = String(r.id);
-                        const desc = (r.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                        const codigo = (r.codigo || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                        return `<div class="form-check">
-                            <input class="form-check-input resultado-checkbox" type="checkbox" value="${id}" id="res_${index}_${detalleId}_${id}" name="filas[${index}][resultados_ids][]">
-                            <label class="form-check-label" for="res_${index}_${detalleId}_${id}"><strong>${codigo}</strong> — ${desc}</label>
-                        </div>`;
-                    }).join('')) || '<div class="text-muted">Sin resultados.</div>';
+                    // Construir labels de competencias seleccionadas
+                    const competenciasLabels = {};
+                    compChecks.forEach(check => {
+                        const label = pane.querySelector(`label[for="${check.id}"]`);
+                        if (label) competenciasLabels[check.value] = label.textContent.trim();
+                    });
+
+                    const porCompetencia = {};
+                    const competenciasCodigos = {};
+                    resultados.forEach(res => {
+                        const cid = res.competencia_dominio_id;
+                        if (!porCompetencia[cid]) {
+                            porCompetencia[cid] = [];
+                            const label = competenciasLabels[cid] || '';
+                            const match = label.match(/^([^-]+)\s*-/);
+                            competenciasCodigos[cid] = match ? match[1].trim() : '';
+                        }
+                        porCompetencia[cid].push(res);
+                    });
+
+                    let html = '<div>';
+                    Object.keys(porCompetencia).forEach(compId => {
+                        const compLabel = competenciasLabels[compId] || '';
+                        const compCodigo = competenciasCodigos[compId] || '';
+                        let compHeader = compCodigo ? `<strong>${compCodigo}</strong>` : '';
+                        if (compLabel) {
+                            const escCode = (compCodigo || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            let cleaned = compLabel.replace(new RegExp('^' + escCode + '\\s*-\\s*', 'i'), '').trim();
+                            cleaned = cleaned.replace(new RegExp('^' + escCode + '\\s+', 'i'), '').trim();
+                            const descTruncada = cleaned.length > 100 ? cleaned.substring(0, 100) + '...' : cleaned;
+                            compHeader += compHeader ? ` - ${descTruncada}` : descTruncada;
+                        }
+
+                        html += `<div style="margin-bottom: 15px; padding: 12px; background: #f0f7ff; border-left: 4px solid #0dcaf0; border-radius: 4px;">
+                            <div style="font-weight: 600; color: #0c63e4; margin-bottom: 10px; font-size: 0.95rem;">${compHeader}</div>`;
+
+                        porCompetencia[compId].forEach(res => {
+                            html += `<div style="margin-bottom: 8px; margin-left: 12px;">
+                                <div class="form-check">
+                                    <input class="form-check-input resultado-checkbox" type="checkbox" value="${res.id}" id="res_${index}_${detalleId}_${res.id}" name="filas[${index}][resultados_ids][]">
+                                    <label class="form-check-label" for="res_${index}_${detalleId}_${res.id}" style="margin-bottom: 0; cursor: pointer;">
+                                        <strong>${res.codigo}</strong> - ${res.descripcion}
+                                    </label>
+                                </div>
+                            </div>`;
+                        });
+                        html += `</div>`;
+                    });
+                    html += '</div>';
+
+                    resCont.innerHTML = html || '<div class="text-muted">Sin resultados.</div>';
 
                     pane.querySelectorAll('.resultado-checkbox').forEach(chk => {
                         chk.addEventListener('change', () => cargarCriterios(item, detalleId));
@@ -755,7 +838,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             if (!pane) return;
             const resChecks = pane.querySelectorAll('.resultado-checkbox:checked');
             const resIds = Array.from(resChecks).map(el => el.value);
-            const critCont = pane.querySelector('.criterios-checkboxes');
+            const critCont = pane.querySelector(`#criterios-${index}-${detalleId}`);
             critCont.innerHTML = '';
             if (resIds.length === 0) {
                 critCont.innerHTML = '<div class="text-muted">Seleccione resultados para ver criterios.</div>';
@@ -765,15 +848,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 .then(r => r.json())
                 .then(data => {
                     const criterios = data.criterios || [];
-                    critCont.innerHTML = (criterios.map(c => {
-                        const id = String(c.id);
-                        const desc = (c.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                        const codigo = (c.codigo || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                        return `<div class="form-check">
-                            <input class="form-check-input criterio-check" type="checkbox" value="${id}" id="crit_${index}_${detalleId}_${id}" name="filas[${index}][criterios_ids][]">
-                            <label class="form-check-label" for="crit_${index}_${detalleId}_${id}"><strong>${codigo}</strong> — ${desc}</label>
-                        </div>`;
-                    }).join('')) || '<div class="text-muted">Sin criterios.</div>';
+                    const porResultado = {};
+                    criterios.forEach(crit => {
+                        const rid = crit.resultado_aprendizaje_ref_id;
+                        if (!porResultado[rid]) {
+                            porResultado[rid] = {
+                                codigo: crit.resultado_codigo || '',
+                                descripcion: crit.resultado_descripcion || '',
+                                competencia_codigo: crit.competencia_codigo || '',
+                                criterios: []
+                            };
+                        }
+                        porResultado[rid].criterios.push(crit);
+                    });
+
+                    let html = '<div>';
+                    Object.keys(porResultado).forEach(resId => {
+                        const resData = porResultado[resId];
+                        const compCode = (resData.competencia_codigo || '').toString();
+                        const escRes = (resData.codigo || '').toString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        let descClean = (resData.descripcion || '').toString();
+                        descClean = descClean.replace(new RegExp('^' + escRes + '\\s*-\\s*', 'i'), '').trim();
+                        descClean = descClean.replace(new RegExp('^' + escRes + '\\s+', 'i'), '').trim();
+                        const headerLeft = compCode ? `<strong>${compCode}</strong> - <strong>${resData.codigo}</strong>` : `<strong>${resData.codigo}</strong>`;
+                        const headerRight = descClean ? ` - ${descClean.length > 80 ? (descClean.substring(0,80) + '...') : descClean}` : '';
+                        let resHeader = `${headerLeft}${headerRight}`;
+
+                        html += `<div style="margin-bottom: 15px; padding: 12px; background: #f0f8f0; border-left: 4px solid #198754; border-radius: 4px;">
+                            <div style="font-weight: 600; color: #155724; margin-bottom: 10px; font-size: 0.95rem;">${resHeader}</div>`;
+
+                        resData.criterios.forEach(crit => {
+                            const codigoCompleto = `${crit.codigo}`;
+                            html += `<div style="margin-bottom: 8px; margin-left: 12px;">
+                                <div class="form-check">
+                                    <input class="form-check-input criterio-check" type="checkbox" value="${crit.id}" id="crit_${index}_${detalleId}_${crit.id}" name="filas[${index}][criterios_ids][]">
+                                    <label class="form-check-label" for="crit_${index}_${detalleId}_${crit.id}" style="margin-bottom: 0; cursor: pointer;">
+                                        <strong style=\"color: #0c63e4;\">${codigoCompleto}</strong> - ${crit.descripcion}
+                                    </label>
+                                </div>
+                            </div>`;
+                        });
+                        html += `</div>`;
+                    });
+                    html += '</div>';
+
+                    critCont.innerHTML = html || '<div class="text-muted">Sin criterios.</div>';
                 })
                 .catch(err => console.error('Error cargando criterios:', err));
         }
@@ -948,8 +1067,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                         });
                         perfil_id_select.innerHTML = opts.join('');
                         perfil_id_select.disabled = false;
-                        // Cargar áreas después de elegir perfil
-                        perfil_id_select.addEventListener('change', cargarAreasPorPerfil);
+                        // Cargar áreas después de elegir perfil con reset completo
+                        perfil_id_select.addEventListener('change', onPerfilChange);
                     })
                     .catch(err => console.error('Error cargando perfiles:', err));
             }

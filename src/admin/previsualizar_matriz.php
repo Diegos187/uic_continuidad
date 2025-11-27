@@ -42,6 +42,61 @@ if (!$version) {
 
 // Obtener las filas de la matriz
 $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_id);
+// Construir estructura jerárquica por dominios para cada fila: Dominio → Competencia → RA → CL
+$detallesPorFila = [];
+foreach ($filas as $f) {
+    $mcid = (int)($f['id'] ?? 0);
+    if ($mcid <= 0) { continue; }
+    $sqlDetalle = "SELECT ped.id AS dominio_id, ped.dominio AS dominio_nombre,
+                           c.id AS comp_id, c.codigo AS comp_codigo, c.descripcion AS comp_desc,
+                           ra.id AS ra_id, ra.codigo AS ra_codigo, ra.descripcion AS ra_desc,
+                           cl.id AS cl_id, cl.codigo AS cl_codigo, cl.descripcion AS cl_desc
+                    FROM matriz_tributacion mt
+                    JOIN criterios_logro_ref cl ON cl.id = mt.criterio_logro_id
+                    JOIN resultados_aprendizaje_ref ra ON ra.id = cl.resultado_aprendizaje_id
+                    JOIN competencias_dominio c ON c.id = ra.competencia_dominio_id
+                    JOIN perfiles_egreso_detalle ped ON ped.id = c.perfil_egreso_detalle_id
+                    WHERE mt.matriz_coherencia_id = :mcid
+                    ORDER BY ped.id, c.orden, ra.orden, cl.orden";
+    $stmtDet = $conexion->prepare($sqlDetalle);
+    $stmtDet->bindValue(':mcid', $mcid, PDO::PARAM_INT);
+    if ($stmtDet->execute()) {
+        $rowsDet = $stmtDet->fetchAll(PDO::FETCH_ASSOC);
+        $byDomain = [];
+        foreach ($rowsDet as $rd) {
+            $dId = (int)$rd['dominio_id'];
+            $cId = (int)$rd['comp_id'];
+            $rId = (int)$rd['ra_id'];
+            $clId = (int)$rd['cl_id'];
+            
+            if (!isset($byDomain[$dId])) {
+                $byDomain[$dId] = [
+                    'nombre' => $rd['dominio_nombre'] ?? 'Dominio',
+                    'competencias' => []
+                ];
+            }
+            if (!isset($byDomain[$dId]['competencias'][$cId])) {
+                $byDomain[$dId]['competencias'][$cId] = [
+                    'codigo' => $rd['comp_codigo'],
+                    'descripcion' => $rd['comp_desc'],
+                    'resultados' => []
+                ];
+            }
+            if (!isset($byDomain[$dId]['competencias'][$cId]['resultados'][$rId])) {
+                $byDomain[$dId]['competencias'][$cId]['resultados'][$rId] = [
+                    'codigo' => $rd['ra_codigo'],
+                    'descripcion' => $rd['ra_desc'],
+                    'criterios' => []
+                ];
+            }
+            $byDomain[$dId]['competencias'][$cId]['resultados'][$rId]['criterios'][$clId] = [
+                'codigo' => $rd['cl_codigo'],
+                'descripcion' => $rd['cl_desc']
+            ];
+        }
+        $detallesPorFila[$mcid] = $byDomain;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -295,62 +350,62 @@ $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_i
         /* Anchos de columnas similares a Excel */
         .matrix-table td:nth-child(2),
         .matrix-table th:nth-child(2) {
-            width: 160px;
-            min-width: 160px;
+            width: 240px;
+            min-width: 240px;
         }
 
         .matrix-table td:nth-child(3),
         .matrix-table th:nth-child(3) {
-            width: 240px;
-            min-width: 240px;
+            width: 380px;
+            min-width: 380px;
         }
 
         .matrix-table td:nth-child(4),
         .matrix-table th:nth-child(4) {
-            width: 240px;
-            min-width: 240px;
+            width: 380px;
+            min-width: 380px;
         }
 
         .matrix-table td:nth-child(5),
         .matrix-table th:nth-child(5) {
-            width: 240px;
-            min-width: 240px;
+            width: 280px;
+            min-width: 280px;
         }
 
         .matrix-table td:nth-child(6),
         .matrix-table th:nth-child(6) {
-            width: 180px;
-            min-width: 180px;
+            width: 300px;
+            min-width: 300px;
         }
 
         .matrix-table td:nth-child(7),
         .matrix-table th:nth-child(7) {
-            width: 180px;
-            min-width: 180px;
+            width: 300px;
+            min-width: 300px;
         }
 
         .matrix-table td:nth-child(8),
         .matrix-table th:nth-child(8) {
-            width: 240px;
-            min-width: 240px;
+            width: 300px;
+            min-width: 300px;
         }
 
         .matrix-table td:nth-child(9),
         .matrix-table th:nth-child(9) {
-            width: 150px;
-            min-width: 150px;
+            width: 220px;
+            min-width: 220px;
         }
 
         .matrix-table td:nth-child(10),
         .matrix-table th:nth-child(10) {
-            width: 150px;
-            min-width: 150px;
+            width: 220px;
+            min-width: 220px;
         }
 
         .matrix-table td:nth-child(11),
         .matrix-table th:nth-child(11) {
-            width: 150px;
-            min-width: 150px;
+            width: 160px;
+            min-width: 160px;
         }
 
         .matrix-table td:nth-child(12),
@@ -408,6 +463,60 @@ $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_i
 
         #table-view.hidden {
             display: none;
+        }
+
+        /* Estilos para jerarquía en vista detallada */
+        .hierarchy-container {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .hierarchy-competencia {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-left: 4px solid #0d6efd;
+            border-radius: 4px;
+        }
+
+        .hierarchy-competencia-header {
+            color: #0d6efd;
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #0d6efd;
+        }
+
+        .hierarchy-resultado {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            margin-left: 1rem;
+            background-color: white;
+            border-left: 3px solid #495057;
+            border-radius: 3px;
+        }
+
+        .hierarchy-resultado-header {
+            color: #495057;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .hierarchy-criterio {
+            margin-left: 1.5rem;
+            margin-bottom: 0.4rem;
+            padding: 0.4rem 0.5rem;
+            color: #6c757d;
+            border-left: 2px solid #dee2e6;
+            padding-left: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .hierarchy-criterio-code {
+            color: #6c757d;
+            font-weight: 600;
         }
 
         @media print {
@@ -513,7 +622,12 @@ $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_i
                         </div>
 
                         <div class="row-card-body">
-                            <!-- Primera fila: Actividad y SCT -->
+                            <?php
+                            $mcid = (int)($fila['id'] ?? 0);
+                            $groups = $detallesPorFila[$mcid] ?? null;
+                            ?>
+
+                            <!-- Fila fija: Actividad y SCT -->
                             <div class="field-row">
                                 <div class="field-group">
                                     <span class="field-label">Actividad Curricular</span>
@@ -525,71 +639,132 @@ $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_i
                                 </div>
                             </div>
 
-                            <!-- Segunda fila: Resultado de Aprendizaje (ancho completo) -->
-                            <div class="field-row wide">
-                                <div class="field-group">
-                                    <span class="field-label">Resultado de Aprendizaje</span>
-                                    <div class="field-value <?php echo empty($fila['resultado_aprendizaje']) ? 'empty' : ''; ?>"><?php echo !empty($fila['resultado_aprendizaje']) ? htmlspecialchars($fila['resultado_aprendizaje']) : 'No especificado'; ?></div>
+                            <?php if ($groups && count($groups) > 0): ?>
+                                <!-- Pestañas por Dominio -->
+                                <?php $tabId = 'tabs-' . $mcid . '-' . ($index + 1); ?>
+                                <ul class="nav nav-tabs" id="<?php echo $tabId; ?>" role="tablist" style="margin-bottom: 1rem;">
+                                    <?php $first = true; foreach ($groups as $domId => $g): ?>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link <?php echo $first ? 'active' : ''; ?>" id="<?php echo $tabId . '-dom-' . $domId; ?>-tab" data-bs-toggle="tab" data-bs-target="#<?php echo $tabId . '-dom-' . $domId; ?>" type="button" role="tab" aria-controls="<?php echo $tabId . '-dom-' . $domId; ?>" aria-selected="<?php echo $first ? 'true' : 'false'; ?>">
+                                                <?php echo htmlspecialchars($g['nombre']); ?>
+                                            </button>
+                                        </li>
+                                    <?php $first = false; endforeach; ?>
+                                </ul>
+                                <div class="tab-content" id="<?php echo $tabId; ?>-content">
+                                    <?php $firstPane = true; foreach ($groups as $domId => $g): ?>
+                                        <div class="tab-pane fade <?php echo $firstPane ? 'show active' : ''; ?>" id="<?php echo $tabId . '-dom-' . $domId; ?>" role="tabpanel" aria-labelledby="<?php echo $tabId . '-dom-' . $domId; ?>-tab">
+                                            <?php if (!empty($g['competencias'])): ?>
+                                                <div class="hierarchy-container">
+                                                    <?php foreach ($g['competencias'] as $cId => $comp): ?>
+                                                        <div class="hierarchy-competencia">
+                                                            <div class="hierarchy-competencia-header">
+                                                                <?php echo htmlspecialchars($comp['codigo'] . ' - ' . $comp['descripcion']); ?>
+                                                            </div>
+                                                            <?php if (!empty($comp['resultados'])): ?>
+                                                                <?php foreach ($comp['resultados'] as $rId => $ra): ?>
+                                                                    <div class="hierarchy-resultado">
+                                                                        <div class="hierarchy-resultado-header">
+                                                                            <?php echo htmlspecialchars($ra['codigo'] . ' - ' . $ra['descripcion']); ?>
+                                                                        </div>
+                                                                        <?php if (!empty($ra['criterios'])): ?>
+                                                                            <?php foreach ($ra['criterios'] as $clId => $cl): ?>
+                                                                                <div class="hierarchy-criterio">
+                                                                                    <span class="hierarchy-criterio-code"><?php echo htmlspecialchars($cl['codigo']); ?>:</span> <?php echo htmlspecialchars($cl['descripcion']); ?>
+                                                                                </div>
+                                                                            <?php endforeach; ?>
+                                                                        <?php endif; ?>
+                                                                    </div>
+                                                                <?php endforeach; ?>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php $firstPane = false; endforeach; ?>
                                 </div>
-                            </div>
 
-                            <!-- Tercera fila: Criterios de Logro (ancho completo) -->
-                            <div class="field-row wide">
-                                <div class="field-group">
-                                    <span class="field-label">Criterios de Logro</span>
-                                    <div class="field-value <?php echo empty($fila['criterios_logro']) ? 'empty' : ''; ?>"><?php echo !empty($fila['criterios_logro']) ? htmlspecialchars($fila['criterios_logro']) : 'No especificados'; ?></div>
+                                <!-- Campos comunes -->
+                                <div class="field-row wide">
+                                    <div class="field-group">
+                                        <span class="field-label">Contenido/Saberes</span>
+                                        <div class="field-value <?php echo empty($fila['contenidos']) ? 'empty' : ''; ?>"><?php echo !empty($fila['contenidos']) ? htmlspecialchars($fila['contenidos']) : 'No especificados'; ?></div>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <!-- Cuarta fila: Dominio y Competencia -->
-                            <div class="field-row">
-                                <div class="field-group">
-                                    <span class="field-label">Dominio</span>
-                                    <div class="field-value <?php echo empty($fila['dominio']) && empty($fila['dominio_nombre']) && empty($fila['dominios_lista']) ? 'empty' : ''; ?>"><?php
-                                        $textoDominio = '';
-                                        if (!empty($fila['dominio'])) {
-                                            $textoDominio = $fila['dominio'];
-                                        } elseif (!empty($fila['dominios_lista'])) {
-                                            $textoDominio = $fila['dominios_lista'];
-                                        } elseif (!empty($fila['dominio_nombre'])) {
-                                            $textoDominio = $fila['dominio_nombre'];
-                                        }
-                                        echo $textoDominio !== '' ? nl2br(htmlspecialchars($textoDominio)) : 'No especificado';
-                                    ?></div>
+                                <div class="field-row">
+                                    <div class="field-group">
+                                        <span class="field-label">Bibliografía</span>
+                                        <div class="field-value <?php echo empty($fila['bibliografia']) ? 'empty' : ''; ?>"><?php echo !empty($fila['bibliografia']) ? htmlspecialchars($fila['bibliografia']) : 'No especificada'; ?></div>
+                                    </div>
+                                    <div class="field-group">
+                                        <span class="field-label">Metodologías</span>
+                                        <div class="field-value <?php echo empty($fila['metodologias']) ? 'empty' : ''; ?>"><?php echo !empty($fila['metodologias']) ? htmlspecialchars($fila['metodologias']) : 'No especificadas'; ?></div>
+                                    </div>
                                 </div>
-                                <div class="field-group">
-                                    <span class="field-label">Competencia</span>
-                                    <div class="field-value <?php echo empty($fila['competencia']) ? 'empty' : ''; ?>"><?php echo !empty($fila['competencia']) ? htmlspecialchars($fila['competencia']) : 'No especificada'; ?></div>
+                                <div class="field-row wide">
+                                    <div class="field-group">
+                                        <span class="field-label">Estrategias</span>
+                                        <div class="field-value <?php echo empty($fila['estrategias']) ? 'empty' : ''; ?>"><?php echo !empty($fila['estrategias']) ? htmlspecialchars($fila['estrategias']) : 'No especificadas'; ?></div>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <!-- Quinta fila: Contenido/Saberes (ancho completo) -->
-                            <div class="field-row wide">
-                                <div class="field-group">
-                                    <span class="field-label">Contenido/Saberes</span>
-                                    <div class="field-value <?php echo empty($fila['contenidos']) ? 'empty' : ''; ?>"><?php echo !empty($fila['contenidos']) ? htmlspecialchars($fila['contenidos']) : 'No especificados'; ?></div>
+                            <?php else: ?>
+                                <!-- Fallback: layout original cuando no hay grupos por dominio -->
+                                <div class="field-row wide">
+                                    <div class="field-group">
+                                        <span class="field-label">Resultado de Aprendizaje</span>
+                                        <div class="field-value <?php echo empty($fila['resultado_aprendizaje']) ? 'empty' : ''; ?>"><?php echo !empty($fila['resultado_aprendizaje']) ? htmlspecialchars($fila['resultado_aprendizaje']) : 'No especificado'; ?></div>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <!-- Sexta fila: Bibliografía, Metodologías y Estrategias -->
-                            <div class="field-row">
-                                <div class="field-group">
-                                    <span class="field-label">Bibliografía</span>
-                                    <div class="field-value <?php echo empty($fila['bibliografia']) ? 'empty' : ''; ?>"><?php echo !empty($fila['bibliografia']) ? htmlspecialchars($fila['bibliografia']) : 'No especificada'; ?></div>
+                                <div class="field-row wide">
+                                    <div class="field-group">
+                                        <span class="field-label">Criterios de Logro</span>
+                                        <div class="field-value <?php echo empty($fila['criterios_logro']) ? 'empty' : ''; ?>"><?php echo !empty($fila['criterios_logro']) ? htmlspecialchars($fila['criterios_logro']) : 'No especificados'; ?></div>
+                                    </div>
                                 </div>
-                                <div class="field-group">
-                                    <span class="field-label">Metodologías</span>
-                                    <div class="field-value <?php echo empty($fila['metodologias']) ? 'empty' : ''; ?>"><?php echo !empty($fila['metodologias']) ? htmlspecialchars($fila['metodologias']) : 'No especificadas'; ?></div>
+                                <div class="field-row">
+                                    <div class="field-group">
+                                        <span class="field-label">Dominio</span>
+                                        <div class="field-value <?php echo empty($fila['dominio']) && empty($fila['dominio_nombre']) && empty($fila['dominios_lista']) ? 'empty' : ''; ?>"><?php
+                                            $textoDominio = '';
+                                            if (!empty($fila['dominio'])) {
+                                                $textoDominio = $fila['dominio'];
+                                            } elseif (!empty($fila['dominios_lista'])) {
+                                                $textoDominio = $fila['dominios_lista'];
+                                            } elseif (!empty($fila['dominio_nombre'])) {
+                                                $textoDominio = $fila['dominio_nombre'];
+                                            }
+                                            echo $textoDominio !== '' ? nl2br(htmlspecialchars($textoDominio)) : 'No especificado';
+                                        ?></div>
+                                    </div>
+                                    <div class="field-group">
+                                        <span class="field-label">Competencia</span>
+                                        <div class="field-value <?php echo empty($fila['competencia']) ? 'empty' : ''; ?>"><?php echo !empty($fila['competencia']) ? htmlspecialchars($fila['competencia']) : 'No especificada'; ?></div>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <!-- Séptima fila: Estrategias (ancho completo) -->
-                            <div class="field-row wide">
-                                <div class="field-group">
-                                    <span class="field-label">Estrategias</span>
-                                    <div class="field-value <?php echo empty($fila['estrategias']) ? 'empty' : ''; ?>"><?php echo !empty($fila['estrategias']) ? htmlspecialchars($fila['estrategias']) : 'No especificadas'; ?></div>
+                                <div class="field-row wide">
+                                    <div class="field-group">
+                                        <span class="field-label">Contenido/Saberes</span>
+                                        <div class="field-value <?php echo empty($fila['contenidos']) ? 'empty' : ''; ?>"><?php echo !empty($fila['contenidos']) ? htmlspecialchars($fila['contenidos']) : 'No especificados'; ?></div>
+                                    </div>
                                 </div>
-                            </div>
+                                <div class="field-row">
+                                    <div class="field-group">
+                                        <span class="field-label">Bibliografía</span>
+                                        <div class="field-value <?php echo empty($fila['bibliografia']) ? 'empty' : ''; ?>"><?php echo !empty($fila['bibliografia']) ? htmlspecialchars($fila['bibliografia']) : 'No especificada'; ?></div>
+                                    </div>
+                                    <div class="field-group">
+                                        <span class="field-label">Metodologías</span>
+                                        <div class="field-value <?php echo empty($fila['metodologias']) ? 'empty' : ''; ?>"><?php echo !empty($fila['metodologias']) ? htmlspecialchars($fila['metodologias']) : 'No especificadas'; ?></div>
+                                    </div>
+                                </div>
+                                <div class="field-row wide">
+                                    <div class="field-group">
+                                        <span class="field-label">Estrategias</span>
+                                        <div class="field-value <?php echo empty($fila['estrategias']) ? 'empty' : ''; ?>"><?php echo !empty($fila['estrategias']) ? htmlspecialchars($fila['estrategias']) : 'No especificadas'; ?></div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -602,32 +777,145 @@ $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_i
                         <thead>
                             <tr>
                                 <th class="row-number">#</th>
-                                <th>Actividad Curricular</th>
-                                <th>Resultado de Aprendizaje</th>
-                                <th>Criterios de Logro</th>
-                                <th>Dominio</th>
-                                <th>Competencia</th>
-                                <th>Contenido/Saberes</th>
-                                <th>Bibliografía</th>
-                                <th>Metodologías</th>
-                                <th>Estrategias</th>
-                                <th>SCT Chile</th>
+                                <th>ÁREA DE FORMACIÓN</th>
+                                <th>DOMINIO</th>
+                                <th>COMPETENCIA</th>
+                                <th>RESULTADOS DE APRENDIZAJE</th>
+                                <th>CRITERIOS DE LOGRO</th>
+                                <th>CONTENIDOS/SABERES</th>
+                                <th>ACTIVIDAD CURRICULAR</th>
+                                <th>SCT-CHILE</th>
+                                <th>METODOLOGÍAS ACTIVAS CENTRADAS EN EL ESTUDIANTADO</th>
+                                <th>ESTRATEGIAS DE EVALUACIÓN</th>
+                                <th>BIBLIOGRAFÍA</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($filas as $index => $fila): ?>
                                 <tr>
+                                    <!-- Columna 1: # (Row Number) -->
                                     <td class="row-number"><?php echo $index + 1; ?></td>
-                                    <td><?php echo !empty($fila['asignatura_nombre']) ? htmlspecialchars($fila['asignatura_nombre']) : ((!empty($fila['asignatura_id']) ? htmlspecialchars($fila['asignatura_id']) : '')); ?></td>
-                                    <td><?php echo nl2br(htmlspecialchars($fila['resultado_aprendizaje'] ?? '')); ?></td>
-                                    <td><?php echo nl2br(htmlspecialchars($fila['criterios_logro'] ?? '')); ?></td>
-                                    <td><?php echo nl2br(htmlspecialchars((($fila['dominio'] ?? '') !== '' ? $fila['dominio'] : (($fila['dominios_lista'] ?? '') !== '' ? $fila['dominios_lista'] : ($fila['dominio_nombre'] ?? ''))))); ?></td>
-                                    <td><?php echo nl2br(htmlspecialchars($fila['competencia'] ?? '')); ?></td>
+                                    
+                                    <!-- Columna 2: ÁREA DE FORMACIÓN -->
+                                    <td><?php echo htmlspecialchars($fila['area_formacion_nombre'] ?? ''); ?></td>
+                                    
+                                    <!-- Columna 3: DOMINIO -->
+                                    <td>
+                                        <?php
+                                        $mcid = (int)($fila['id'] ?? 0);
+                                        $groups = $detallesPorFila[$mcid] ?? null;
+                                        if ($groups) {
+                                            echo nl2br(htmlspecialchars(implode("\n\n", array_map(function($g){return $g['nombre'];}, $groups))));
+                                        } else {
+                                            echo nl2br(htmlspecialchars((($fila['dominio'] ?? '') !== '' ? $fila['dominio'] : (($fila['dominios_lista'] ?? '') !== '' ? $fila['dominios_lista'] : ($fila['dominio_nombre'] ?? '')))));
+                                        }
+                                        ?>
+                                    </td>
+                                    
+                                    <!-- Columna 4: COMPETENCIA -->
+                                    <td>
+                                        <?php
+                                        $mcid = (int)($fila['id'] ?? 0);
+                                        $groups = $detallesPorFila[$mcid] ?? null;
+                                        if ($groups) {
+                                            foreach ($groups as $g) {
+                                                if (!empty($g['competencias'])) {
+                                                    echo '<strong style="color: #0d6efd; display: block; margin-bottom: 0.5rem;">[' . htmlspecialchars($g['nombre']) . ']</strong>';
+                                                    foreach ($g['competencias'] as $cId => $comp) {
+                                                        echo '<div style="margin-bottom: 0.5rem; padding-left: 0.5rem; border-left: 2px solid #0d6efd;">';
+                                                        echo htmlspecialchars($comp['codigo'] . ' - ' . $comp['descripcion']);
+                                                        echo '</div>';
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            echo nl2br(htmlspecialchars($fila['competencia'] ?? ''));
+                                        }
+                                        ?>
+                                    </td>
+                                    
+                                    <!-- Columna 5: RESULTADOS DE APRENDIZAJE -->
+                                    <td>
+                                        <?php
+                                        $mcid = (int)($fila['id'] ?? 0);
+                                        $groups = $detallesPorFila[$mcid] ?? null;
+                                        if ($groups) {
+                                            foreach ($groups as $g) {
+                                                if (!empty($g['competencias'])) {
+                                                    echo '<strong style="color: #0d6efd; display: block; margin-bottom: 0.5rem;">[' . htmlspecialchars($g['nombre']) . ']</strong>';
+                                                    foreach ($g['competencias'] as $cId => $comp) {
+                                                        echo '<div style="margin-bottom: 0.5rem; padding-left: 0.5rem; border-left: 2px solid #0d6efd;">';
+                                                        echo '<div style="font-size: 0.85rem; font-weight: 600; color: #495057; margin-bottom: 0.3rem;">' . htmlspecialchars($comp['codigo']) . ':</div>';
+                                                        if (!empty($comp['resultados'])) {
+                                                            foreach ($comp['resultados'] as $rId => $ra) {
+                                                                echo '<div style="margin-left: 0.5rem; margin-bottom: 0.25rem;">';
+                                                                echo htmlspecialchars($ra['codigo'] . ' - ' . $ra['descripcion']);
+                                                                echo '</div>';
+                                                            }
+                                                        }
+                                                        echo '</div>';
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            echo nl2br(htmlspecialchars($fila['resultado_aprendizaje'] ?? ''));
+                                        }
+                                        ?>
+                                    </td>
+                                    
+                                    <!-- Columna 6: CRITERIOS DE LOGRO -->
+                                    <td>
+                                        <?php
+                                        $mcid = (int)($fila['id'] ?? 0);
+                                        $groups = $detallesPorFila[$mcid] ?? null;
+                                        if ($groups) {
+                                            foreach ($groups as $g) {
+                                                if (!empty($g['competencias'])) {
+                                                    echo '<strong style="color: #0d6efd; display: block; margin-bottom: 0.5rem;">[' . htmlspecialchars($g['nombre']) . ']</strong>';
+                                                    foreach ($g['competencias'] as $cId => $comp) {
+                                                        echo '<div style="margin-bottom: 0.5rem; padding-left: 0.5rem; border-left: 2px solid #0d6efd;">';
+                                                        echo '<div style="font-size: 0.85rem; font-weight: 600; color: #495057; margin-bottom: 0.3rem;">' . htmlspecialchars($comp['codigo']) . ':</div>';
+                                                        if (!empty($comp['resultados'])) {
+                                                            foreach ($comp['resultados'] as $rId => $ra) {
+                                                                echo '<div style="margin-left: 0.5rem; margin-bottom: 0.3rem;">';
+                                                                echo '<div style="font-size: 0.8rem; font-weight: 600; color: #666; margin-bottom: 0.15rem;">' . htmlspecialchars($ra['codigo']) . ':</div>';
+                                                                if (!empty($ra['criterios'])) {
+                                                                    foreach ($ra['criterios'] as $clId => $cl) {
+                                                                        echo '<div style="margin-left: 0.5rem; font-size: 0.8rem; color: #6c757d; margin-bottom: 0.1rem;">';
+                                                                        echo '• ' . htmlspecialchars($cl['codigo'] . ' - ' . $cl['descripcion']);
+                                                                        echo '</div>';
+                                                                    }
+                                                                }
+                                                                echo '</div>';
+                                                            }
+                                                        }
+                                                        echo '</div>';
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            echo nl2br(htmlspecialchars($fila['criterios_logro'] ?? ''));
+                                        }
+                                        ?>
+                                    </td>
+                                    
+                                    <!-- Columna 7: CONTENIDOS/SABERES -->
                                     <td><?php echo htmlspecialchars($fila['contenidos'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($fila['bibliografia'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($fila['metodologias'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($fila['estrategias'] ?? ''); ?></td>
+                                    
+                                    <!-- Columna 8: ACTIVIDAD CURRICULAR -->
+                                    <td><?php echo !empty($fila['asignatura_nombre']) ? htmlspecialchars($fila['asignatura_nombre']) : ((!empty($fila['asignatura_id']) ? htmlspecialchars($fila['asignatura_id']) : '')); ?></td>
+                                    
+                                    <!-- Columna 9: SCT-CHILE -->
                                     <td><?php echo htmlspecialchars($fila['sct_chile'] ?? ''); ?></td>
+                                    
+                                    <!-- Columna 10: METODOLOGÍAS ACTIVAS CENTRADAS EN EL ESTUDIANTADO -->
+                                    <td><?php echo htmlspecialchars($fila['metodologias'] ?? ''); ?></td>
+                                    
+                                    <!-- Columna 11: ESTRATEGIAS DE EVALUACIÓN -->
+                                    <td><?php echo htmlspecialchars($fila['estrategias'] ?? ''); ?></td>
+                                    
+                                    <!-- Columna 12: BIBLIOGRAFÍA -->
+                                    <td><?php echo htmlspecialchars($fila['bibliografia'] ?? ''); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

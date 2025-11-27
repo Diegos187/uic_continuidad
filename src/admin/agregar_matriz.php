@@ -599,18 +599,85 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 .catch(err => console.error('Error cargar áreas por perfil:', err));
         }
 
+        // Reset total al cambiar Perfil de egreso: limpia todas las filas y deja estado por defecto
+        function onPerfilChange() {
+            // Limpiar caches dependientes
+            atributosCache.areasPorPerfil = [];
+            atributosCache.resultados = [];
+
+            const items = document.querySelectorAll('#filas-container .accordion-item');
+            items.forEach((item) => {
+                // Desmarcar todos los checkboxes dentro de la fila
+                item.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+                // Reset selects de área y actividad
+                const selArea = item.querySelector('.campo-area');
+                if (selArea) {
+                    selArea.value = '';
+                    selArea.disabled = true;
+                    selArea.innerHTML = '<option value="">Seleccione un área</option>';
+                }
+                const selActividad = item.querySelector('.campo-actividad');
+                if (selActividad) {
+                    selActividad.value = '';
+                    selActividad.disabled = true;
+                    selActividad.innerHTML = '<option value="">Seleccione una actividad curricular</option>';
+                }
+
+                // Contenedor de dominios (mensaje base)
+                const domCont = item.querySelector('[id^="dominios-"]');
+                if (domCont) {
+                    domCont.innerHTML = '<p class="text-muted mb-0 small">Seleccione un área primero</p>';
+                }
+
+                // Limpiar tabs por dominio y contenidos relacionados
+                item.querySelectorAll('[id^="domTabs-"]').forEach(el => el.innerHTML = '');
+                item.querySelectorAll('[id^="domTabsContent-"]').forEach(el => {
+                    el.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios primero</div>';
+                });
+
+                // Limpiar contenedores de resultados y criterios generados
+                item.querySelectorAll('[id^="resultados-"]').forEach(el => {
+                    el.innerHTML = '<p class="text-muted mb-0">Seleccione competencias primero</p>';
+                });
+                item.querySelectorAll('[id^="criterios-"]').forEach(el => {
+                    el.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
+                });
+
+                // Limpiar campos de texto auxiliares
+                item.querySelectorAll('.campo-dominio, .campo-competencia, .campo-resultado').forEach(el => {
+                    el.value = '';
+                    try { autoResizeTextarea(el); } catch (e) {}
+                });
+
+                // Actualizar resumen visual
+                actualizarResumenFila(item);
+            });
+
+            // Finalmente, recargar áreas disponibles para el nuevo perfil
+            cargarAreasPorPerfil();
+        }
+
         function cargarDominios(index) {
             const item = document.querySelector(`[data-index="${index}"]`);
             const areaSelect = item.querySelector('.campo-area');
             const areaId = areaSelect.value;
             const perfilId = document.getElementById('perfil_id').value;
             const dominiosContainer = document.getElementById(`dominios-${index}`);
+            const domTabs = document.getElementById(`domTabs-${index}`);
+            const domTabsContent = document.getElementById(`domTabsContent-${index}`);
+            // Resetear estado dependiente de área inmediatamente
+            if (domTabs) domTabs.innerHTML = '';
+            if (domTabsContent) domTabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios primero</div>';
+            // Desmarcar cualquier selección previa (competencias, RA, CL)
+            item.querySelectorAll('.competencia-checkbox, .resultado-checkbox, input[id^="crit_"]').forEach(cb => { if (cb instanceof HTMLInputElement) cb.checked = false; });
             
             if (!areaId || !perfilId) {
                 dominiosContainer.innerHTML = '<p class="text-muted mb-0 small">Seleccione un área primero</p>';
                 actualizarResumenFila(item);
                 return;
             }
+            dominiosContainer.innerHTML = '<p class="text-muted mb-0 small">Cargando dominios…</p>';
             fetch(`../../src/api/atributos.php?perfil_id=${perfilId}&area_id=${areaId}&action=dominios`)
                 .then(r => r.json())
                 .then(data => {
@@ -627,6 +694,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>`;
                         });
                         dominiosContainer.innerHTML = html;
+                        // Asegurar mensajes por defecto en pestañas dependientes
+                        if (domTabs) domTabs.innerHTML = '';
+                        if (domTabsContent) domTabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios primero</div>';
                     }
                 })
                 .catch(err => console.error('Error cargar dominios:', err));
@@ -1137,6 +1207,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             });
                     }
                 });
+            }
+
+            // Escuchar cambios de Perfil de egreso y resetear todo
+            const perfilSel = document.getElementById('perfil_id');
+            if (perfilSel) {
+                perfilSel.addEventListener('change', onPerfilChange);
             }
 
             agregarFila();

@@ -330,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </div>
                                 <div class="col-md-6">
                                     <label for="perfil_id" class="form-label">Perfil de egreso</label>
-                                    <select class="form-select" id="perfil_id" name="perfil_id" required disabled onchange="cargarAreasPorPerfil()">
+                                    <select class="form-select" id="perfil_id" name="perfil_id" required disabled onchange="onPerfilChange()">
                                         <option value="">Seleccione un perfil</option>
                                     </select>
                                 </div>
@@ -724,6 +724,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             const areaId = selectEl.value;
             const perfilId = document.getElementById('perfil_id').value;
             const item = selectEl.closest('.accordion-item');
+            // Reset dependent UI immediately
+            const idx = parseInt(item.getAttribute('data-index'), 10);
+            const domTabs = document.getElementById(`domTabs-${idx}`);
+            const domTabsContent = document.getElementById(`domTabsContent-${idx}`);
+            if (domTabs) domTabs.innerHTML = '';
+            if (domTabsContent) domTabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>';
+            // Uncheck any existing selections
+            item.querySelectorAll('.competencia-checkbox, .resultado-checkbox, .criterios-checkboxes input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+
             if (!areaId || !perfilId) {
                 const dominiosContainer = item.querySelector(`#dominios-${item.getAttribute('data-index')}`);
                 if (dominiosContainer) dominiosContainer.innerHTML = '<p class="text-muted mb-0 small">Seleccione un área primero</p>';
@@ -731,7 +740,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 return;
             }
             // cargar dominios
-            const idx = parseInt(item.getAttribute('data-index'), 10);
+            const dominiosContainer = item.querySelector(`#dominios-${idx}`);
+            if (dominiosContainer) dominiosContainer.innerHTML = '<p class="text-muted mb-0 small">Cargando dominios…</p>';
             cargarDominios(idx);
         }
 
@@ -741,11 +751,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             const areaId = areaSelect.value;
             const perfilId = document.getElementById('perfil_id').value;
             const dominiosContainer = document.getElementById(`dominios-${index}`);
+            const domTabs = document.getElementById(`domTabs-${index}`);
+            const domTabsContent = document.getElementById(`domTabsContent-${index}`);
+            // Reset tabs and selections immediately
+            if (domTabs) domTabs.innerHTML = '';
+            if (domTabsContent) domTabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>';
+            item.querySelectorAll('.competencia-checkbox, .resultado-checkbox, .criterios-checkboxes input[type="checkbox"]').forEach(cb => { cb.checked = false; });
             if (!areaId || !perfilId) {
                 dominiosContainer.innerHTML = '<p class="text-muted mb-0 small">Seleccione un área primero</p>';
                 actualizarResumenFila(item);
                 return;
             }
+            dominiosContainer.innerHTML = '<p class="text-muted mb-0 small">Cargando dominios…</p>';
             fetch(`../../src/api/atributos.php?perfil_id=${perfilId}&area_id=${areaId}&action=dominios`)
                 .then(r => r.json())
                 .then(data => {
@@ -784,6 +801,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     }
                 })
                 .catch(err => console.error('Error cargar dominios:', err));
+        }
+
+        // Reset completo al cambiar Perfil de egreso
+        function onPerfilChange() {
+            // Limpiar selects de área y dependencias por fila
+            document.querySelectorAll('#filas-container .accordion-item').forEach(item => {
+                const idx = parseInt(item.getAttribute('data-index'), 10);
+                const selArea = item.querySelector('.campo-area');
+                if (selArea) { selArea.value = ''; selArea.disabled = true; }
+                const domCont = item.querySelector(`#dominios-${idx}`);
+                if (domCont) domCont.innerHTML = '<p class="text-muted mb-0 small">Seleccione un área primero</p>';
+                const tabs = document.getElementById(`domTabs-${idx}`);
+                const tabsContent = document.getElementById(`domTabsContent-${idx}`);
+                if (tabs) tabs.innerHTML = '';
+                if (tabsContent) tabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>';
+                // Desmarcar selecciones dependientes
+                item.querySelectorAll('.dominio-checkbox, .competencia-checkbox, .resultado-checkbox, .criterios-checkboxes input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+                // Limpiar selección de actividad curricular pero mantener opciones
+                const selAct = item.querySelector('.campo-actividad');
+                if (selAct) selAct.value = '';
+                actualizarResumenFila(item);
+            });
+            // Cargar áreas para el nuevo perfil
+            cargarAreasPorPerfil();
         }
 
         function cargarCompetencias(index) {
