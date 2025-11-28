@@ -202,6 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <title>Agregar Matriz de Coherencia - UTEM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 
 <body>
@@ -274,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php include '../../includes/footer.php'; ?>
 
     <!-- Toast container -->
-    <div id="toast-container" class="toast-container"></div>
+    <div id="toast-container" class="toast-container" style="display:none"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../../public/js/validador_estructura.js"></script>
@@ -632,9 +633,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
                 const selActividad = item.querySelector('.campo-actividad');
                 if (selActividad) {
-                    selActividad.value = '';
-                    selActividad.disabled = true;
-                    selActividad.innerHTML = '<option value="">Seleccione una actividad curricular</option>';
+                    // Mantener actividades habilitadas según carrera seleccionada
+                    const carreraId = document.getElementById('carrera_id').value;
+                    if (carreraId && atributosCache.asignaturas.length) {
+                        const prevVal = selActividad.value;
+                        selActividad.innerHTML = optionAsignaturas(atributosCache.asignaturas, 'Seleccione una actividad curricular');
+                        selActividad.disabled = false;
+                        if (prevVal) selActividad.value = prevVal;
+                    } else {
+                        selActividad.disabled = true;
+                        selActividad.innerHTML = '<option value="">Seleccione una actividad curricular</option>';
+                    }
                 }
 
                 // Contenedor de dominios (mensaje base)
@@ -1038,10 +1047,56 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         function limpiarBordes(item) {
-            const inputs = item.querySelectorAll('select, textarea');
+            const inputs = item.querySelectorAll('select, textarea, input');
             inputs.forEach(el => {
+                el.classList.remove('campo-error','shake-error');
                 el.style.borderColor = '';
                 el.style.borderWidth = '';
+            });
+        }
+
+        function marcarError(el) {
+            if (!el) return;
+            el.classList.add('campo-error','shake-error');
+            setTimeout(() => el.classList.remove('shake-error'), 600);
+        }
+
+        function expandirItem(item) {
+            if (!item) return;
+            const collapse = item.querySelector('.accordion-collapse');
+            if (collapse && !collapse.classList.contains('show')) collapse.classList.add('show');
+            item.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Desplaza la página exactamente al campo indicado, considerando encabezados fijos
+        function scrollToField(el) {
+            if (!el) return;
+            // Si el elemento está dentro de un collapse, asegúrate de abrirlo primero
+            const accordionItem = el.closest('.accordion-item');
+            if (accordionItem) expandirItem(accordionItem);
+            const rect = el.getBoundingClientRect();
+            const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+            // Ajuste por posible header fijo (aprox. 80px)
+            const offset = 80;
+            const targetY = rect.top + currentScroll - offset;
+            window.scrollTo({ top: targetY, behavior: 'smooth' });
+        }
+
+        function clearErroresGlobal() {
+            document.querySelectorAll('.campo-error').forEach(el => el.classList.remove('campo-error','shake-error'));
+        }
+
+        function attachClearOnChange(root = document) {
+            const targets = root.querySelectorAll('input, select, textarea');
+            targets.forEach(el => {
+                const handler = () => {
+                    el.classList.remove('campo-error','shake-error');
+                    // limpiar estilos inline previos
+                    el.style.borderColor = '';
+                    el.style.borderWidth = '';
+                };
+                el.addEventListener('input', handler);
+                el.addEventListener('change', handler);
             });
         }
 
@@ -1054,21 +1109,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             const nombreVersion = document.getElementById('nombre_version').value.trim();
 
             if (!carreraId) {
+                const el = document.getElementById('carrera_id');
+                marcarError(el);
+                el.focus();
+                scrollToField(el);
                 mostrarToastError('Debe seleccionar una Carrera.');
                 return false;
             }
 
             if (!perfilId) {
+                const el = document.getElementById('perfil_id');
+                marcarError(el);
+                el.focus();
+                scrollToField(el);
                 mostrarToastError('Debe seleccionar un Perfil de egreso.');
                 return false;
             }
 
             if (!nombreMatriz) {
+                const el = document.getElementById('nombre_matriz');
+                marcarError(el);
+                el.focus();
+                scrollToField(el);
                 mostrarToastError('Debe ingresar un nombre para la Matriz.');
                 return false;
             }
 
             if (!nombreVersion) {
+                const el = document.getElementById('nombre_version');
+                marcarError(el);
+                el.focus();
+                scrollToField(el);
                 mostrarToastError('Debe ingresar un nombre/descripción para la Versión.');
                 return false;
             }
@@ -1081,49 +1152,83 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 return false;
             }
 
+            clearErroresGlobal();
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
                 const areaEl = item.querySelector('.campo-area');
                 const actividadEl = item.querySelector('.campo-actividad');
                 const area = areaEl ? areaEl.value.trim() : '';
                 const actividad = actividadEl ? actividadEl.value.trim() : '';
+                const idx = parseInt(item.getAttribute('data-index'), 10);
 
                 // Dominios seleccionados
                 const dominiosSeleccionados = item.querySelectorAll('.dominio-checkbox:checked').length;
                 if (dominiosSeleccionados === 0) {
+                    expandirItem(item);
+                    const domCont = item.querySelector('[id^="dominios-"]');
+                    marcarError(domCont);
+                    scrollToField(domCont);
                     mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos un Dominio.`);
                     return false;
                 }
 
-                // Competencias seleccionadas (en cualquiera de las pestañas)
-                const competenciasChecked = item.querySelectorAll('.competencia-checkbox:checked').length;
-                if (competenciasChecked === 0) {
-                    mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos una Competencia.`);
-                    return false;
-                }
+                // Validación por cada dominio seleccionado: al menos una competencia, un resultado y un criterio
+                const dominiosCheckedEls = Array.from(item.querySelectorAll(`#dominios-${isNaN(idx)?'':idx} .dominio-checkbox:checked`));
+                for (let d = 0; d < dominiosCheckedEls.length; d++) {
+                    const detId = dominiosCheckedEls[d].value;
+                    const compWrap = item.querySelector(`#competencias-${idx}-${detId}`);
+                    const resWrap = item.querySelector(`#resultados-${idx}-${detId}`);
+                    const critWrap = item.querySelector(`#criterios-${idx}-${detId}`);
 
-                // Resultados seleccionados
-                const resultadosChecked = item.querySelectorAll('.resultado-checkbox:checked').length;
-                if (resultadosChecked === 0) {
-                    mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos un Resultado de Aprendizaje.`);
-                    return false;
-                }
+                    const compChecked = compWrap ? compWrap.querySelectorAll('.competencia-checkbox:checked') : [];
+                    if (!compChecked || compChecked.length === 0) {
+                        expandirItem(item);
+                        if (compWrap) {
+                            marcarError(compWrap);
+                            const firstCompCb = compWrap.querySelector('.competencia-checkbox');
+                            if (firstCompCb) firstCompCb.focus();
+                            compWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        mostrarToastError(`Fila ${i + 1}: En cada dominio, marque al menos una Competencia.`);
+                        return false;
+                    }
 
-                // Criterios seleccionados
-                const criteriosChecked = item.querySelectorAll('input[id^="crit_"]:checked').length;
-                if (criteriosChecked === 0) {
-                    mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos un Criterio de Logro.`);
-                    return false;
+                    const resChecked = resWrap ? resWrap.querySelectorAll('.resultado-checkbox:checked') : [];
+                    if (!resChecked || resChecked.length === 0) {
+                        expandirItem(item);
+                        if (resWrap) {
+                            marcarError(resWrap);
+                            const firstResCb = resWrap.querySelector('.resultado-checkbox');
+                            if (firstResCb) firstResCb.focus();
+                            resWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        mostrarToastError(`Fila ${i + 1}: En cada dominio, marque al menos un Resultado de Aprendizaje.`);
+                        return false;
+                    }
+
+                    const critChecked = critWrap ? critWrap.querySelectorAll('input[type="checkbox"]:checked') : [];
+                    if (!critChecked || critChecked.length === 0) {
+                        expandirItem(item);
+                        if (critWrap) {
+                            marcarError(critWrap);
+                            const firstCritCb = critWrap.querySelector('input[type="checkbox"]');
+                            if (firstCritCb) firstCritCb.focus();
+                            critWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        mostrarToastError(`Fila ${i + 1}: En cada dominio, marque al menos un Criterio de Logro.`);
+                        return false;
+                    }
                 }
 
                 // Validar área
                 if (!area) {
                     limpiarBordes(item);
                     if (areaEl) {
-                        areaEl.style.borderColor = '#dc3545';
-                        areaEl.style.borderWidth = '2px';
+                        marcarError(areaEl);
                         areaEl.focus();
+                        scrollToField(areaEl);
                     }
+                    expandirItem(item);
                     mostrarToastError(`Fila ${i + 1}: Debe seleccionar un Área de formación.`);
                     return false;
                 }
@@ -1132,11 +1237,66 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if (!actividad) {
                     limpiarBordes(item);
                     if (actividadEl) {
-                        actividadEl.style.borderColor = '#dc3545';
-                        actividadEl.style.borderWidth = '2px';
+                        marcarError(actividadEl);
                         actividadEl.focus();
+                        scrollToField(actividadEl);
                     }
+                    expandirItem(item);
                     mostrarToastError(`Fila ${i + 1}: Debe seleccionar una Actividad Curricular.`);
+                    return false;
+                }
+
+                // Validar campos de texto obligatorios en la fila
+                const contenidosEl = item.querySelector('textarea[name^="filas"][name$="[contenidos]"]');
+                const bibliografiaEl = item.querySelector('textarea[name^="filas"][name$="[bibliografia]"]');
+                const metodologiasEl = item.querySelector('textarea[name^="filas"][name$="[metodologias]"]');
+                const estrategiasEl = item.querySelector('textarea[name^="filas"][name$="[estrategias]"]');
+                const sctEl = item.querySelector('input[name^="filas"][name$="[sct_chile]"]');
+
+                // contenidos
+                if (!contenidosEl || !contenidosEl.value.trim()) {
+                    expandirItem(item);
+                    marcarError(contenidosEl);
+                    if (contenidosEl) contenidosEl.focus();
+                    scrollToField(contenidosEl);
+                    mostrarToastError(`Fila ${i + 1}: Debe ingresar Contenidos/Saberes.`);
+                    return false;
+                }
+                // bibliografia
+                if (!bibliografiaEl || !bibliografiaEl.value.trim()) {
+                    expandirItem(item);
+                    marcarError(bibliografiaEl);
+                    if (bibliografiaEl) bibliografiaEl.focus();
+                    scrollToField(bibliografiaEl);
+                    mostrarToastError(`Fila ${i + 1}: Debe ingresar Bibliografía.`);
+                    return false;
+                }
+                // metodologias
+                if (!metodologiasEl || !metodologiasEl.value.trim()) {
+                    expandirItem(item);
+                    marcarError(metodologiasEl);
+                    if (metodologiasEl) metodologiasEl.focus();
+                    scrollToField(metodologiasEl);
+                    mostrarToastError(`Fila ${i + 1}: Debe ingresar Metodologías Activas.`);
+                    return false;
+                }
+                // estrategias
+                if (!estrategiasEl || !estrategiasEl.value.trim()) {
+                    expandirItem(item);
+                    marcarError(estrategiasEl);
+                    if (estrategiasEl) estrategiasEl.focus();
+                    scrollToField(estrategiasEl);
+                    mostrarToastError(`Fila ${i + 1}: Debe ingresar Estrategias.`);
+                    return false;
+                }
+                // sct chile (numérico > 0)
+                const sctVal = sctEl ? String(sctEl.value || '').trim() : '';
+                if (!sctVal || isNaN(Number(sctVal)) || Number(sctVal) <= 0) {
+                    expandirItem(item);
+                    marcarError(sctEl);
+                    if (sctEl) sctEl.focus();
+                    scrollToField(sctEl);
+                    mostrarToastError(`Fila ${i + 1}: Debe ingresar SCT-Chile (número mayor a 0).`);
                     return false;
                 }
             }
@@ -1168,6 +1328,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             const form = document.querySelector('form');
             if (form) {
+                // limpiar error al cambiar campos
+                attachClearOnChange(document);
                 form.addEventListener('submit', function(e) {
                     e.preventDefault();
                     if (validarFormulario()) {
@@ -1203,15 +1365,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             })
                             .then(response => response.json())
                             .then(data => {
-                                if (data.success) {
-                                    // Mostrar toast de éxito
-                                    mostrarToastExito(data.message, 1500);
-                                    // Redirigir después de 1.5 segundos
-                                    setTimeout(() => {
-                                        window.location.href = `matrices.php?carrera_id=${encodeURIComponent(data.carrera_id)}`;
-                                    }, 1500);
+                                if (data && data.success) {
+                                    if (typeof Swal !== 'undefined') {
+                                        Swal.fire({
+                                            icon: 'success',
+                                            title: 'Matriz creada',
+                                            text: data.message || 'Matriz creada correctamente',
+                                            timer: 1800,
+                                            showConfirmButton: false
+                                        }).then(() => {
+                                            window.location.href = `matrices.php?carrera_id=${encodeURIComponent(data.carrera_id || '')}`;
+                                        });
+                                    } else {
+                                        mostrarToastExito(data.message || 'Matriz creada correctamente', 1500);
+                                        setTimeout(() => { window.location.href = `matrices.php?carrera_id=${encodeURIComponent(data.carrera_id || '')}`; }, 1600);
+                                    }
                                 } else {
-                                    mostrarToastError(data.message);
+                                    mostrarToastError((data && data.message) || 'Error al crear la matriz');
                                 }
                             })
                             .catch(err => {
@@ -1234,6 +1404,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Funciones de toast
         function mostrarToastExito(mensaje = 'Matriz creada correctamente', duracion = 1500) {
             const container = document.getElementById('toast-container');
+            if (container && container.style.display === 'none') container.style.display = 'block';
             const toast = document.createElement('div');
             toast.className = 'toast-success';
             toast.textContent = mensaje;
@@ -1248,6 +1419,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         function mostrarToastError(mensaje = 'Error al guardar') {
             const container = document.getElementById('toast-container');
+            if (container && container.style.display === 'none') container.style.display = 'block';
             const toast = document.createElement('div');
             toast.className = 'toast-error';
             toast.textContent = mensaje;
@@ -1295,6 +1467,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             overflow: visible !important;
             max-height: none !important;
         }
+
+        .campo-error {
+            border: 2px solid #dc3545 !important;
+            background-color: #fff5f5;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+            100% { transform: translateX(0); }
+        }
+
+        .shake-error { animation: shake 0.45s ease; }
 
         /* Toast flotante */
         .toast-container {

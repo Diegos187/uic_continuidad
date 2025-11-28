@@ -72,8 +72,7 @@ if (!empty($filasActuales)) {
     foreach ($filasActuales as $fila) {
         $mcid = (int)($fila['id'] ?? 0);
         if ($mcid > 0) {
-            // Obtener criterios para esta fila
-                 $stmtSel = $conexion->prepare("SELECT mt.criterio_logro_id AS crit_id,
+            $stmtSel = $conexion->prepare("SELECT mt.criterio_logro_id AS crit_id,
                                      clr.resultado_aprendizaje_id AS res_id,
                                      rar.competencia_dominio_id AS comp_id,
                                      cd.perfil_egreso_detalle_id AS detalle_id
@@ -88,6 +87,7 @@ if (!empty($filasActuales)) {
             $criterios = [];
             $resultados = [];
             $competencias = [];
+            $detalles = [];
             foreach ($rows as $r) {
                 $criterios[] = (int)$r['crit_id'];
                 $resultados[] = (int)$r['res_id'];
@@ -374,6 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div id="toast-container" class="toast-container"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="../../public/js/validador_estructura.js"></script>
     <script>
         let filaCounter = 0;
@@ -568,18 +569,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         function actualizarResumenFila(item) {
-            const dom = (item.querySelector('.campo-dominio')?.value || '').trim();
-            const comp = (item.querySelector('.campo-competencia')?.value || '').trim();
-            const ra = item.querySelector('.campo-resultado')?.value || '';
             const resumen = item.querySelector('.resumen-fila');
+            if (!resumen) return;
 
-            // Truncar cada parte a 40 caracteres máximo
-            const truncar = (texto, max = 40) => {
+            // Área de formación (texto de opción seleccionada)
+            const areaSel = item.querySelector('.campo-area');
+            let areaTxt = '';
+            if (areaSel && areaSel.value) {
+                const opt = areaSel.options[areaSel.selectedIndex];
+                areaTxt = opt ? opt.text.trim() : '';
+            }
+
+            // Primer dominio seleccionado (label del checkbox)
+            let dominioTxt = '';
+            const idx = parseInt(item.getAttribute('data-index'), 10);
+            const dominiosContainer = item.querySelector(`#dominios-${isNaN(idx)?'':idx}`);
+            if (dominiosContainer) {
+                const firstDom = dominiosContainer.querySelector('.dominio-checkbox:checked');
+                if (firstDom) {
+                    const lbl = dominiosContainer.querySelector(`label[for="${firstDom.id}"]`);
+                    dominioTxt = lbl ? lbl.textContent.trim() : '';
+                }
+            }
+
+            // Actividad Curricular (texto de opción seleccionada)
+            const actSel = item.querySelector('.campo-actividad');
+            let actTxt = '';
+            if (actSel && actSel.value) {
+                const optA = actSel.options[actSel.selectedIndex];
+                actTxt = optA ? optA.text.trim() : '';
+            }
+
+            const truncar = (texto, max = 28) => {
                 if (!texto) return '';
                 return texto.length > max ? texto.substring(0, max) + '…' : texto;
             };
 
-            const partes = [truncar(dom), truncar(comp), truncar(ra)].filter(Boolean).slice(0, 2);
+            const partes = [truncar(areaTxt), truncar(dominioTxt), truncar(actTxt)].filter(Boolean).slice(0, 3);
             resumen.textContent = partes.length ? `— ${partes.join(' | ')}` : '';
         }
 
@@ -1169,6 +1195,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         // Validación del formulario antes de submit
+        function expandirFila(item) {
+            const body = item.querySelector('.accordion-collapse');
+            const btn = item.querySelector('.accordion-button');
+            if (body) body.classList.add('show');
+            if (btn) btn.classList.remove('collapsed');
+        }
+
         function validarFormulario() {
             const carreraId = document.getElementById('carrera_id').value.trim();
             const perfilId = document.getElementById('perfil_id').value.trim();
@@ -1181,16 +1214,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
 
             if (!perfilId) {
+                const perfilEl = document.getElementById('perfil_id');
+                if (perfilEl) {
+                    perfilEl.classList.add('campo-error','shake');
+                    perfilEl.focus();
+                    setTimeout(() => perfilEl.classList.remove('shake'), 500);
+                }
                 mostrarToastError('Debe seleccionar un Perfil de egreso.');
                 return false;
             }
 
             if (!nombreMatriz) {
+                const nombreEl = document.getElementById('nombre_matriz');
+                if (nombreEl) {
+                    nombreEl.classList.add('campo-error','shake');
+                    nombreEl.focus();
+                    setTimeout(() => nombreEl.classList.remove('shake'), 500);
+                }
                 mostrarToastError('Debe ingresar un Nombre de la matriz.');
                 return false;
             }
 
             if (!descripcionVersion) {
+                const versionEl = document.getElementById('descripcion_version');
+                if (versionEl) {
+                    versionEl.classList.add('campo-error','shake');
+                    versionEl.focus();
+                    setTimeout(() => versionEl.classList.remove('shake'), 500);
+                }
                 mostrarToastError('Debe ingresar una Descripción para la versión.');
                 return false;
             }
@@ -1211,31 +1262,160 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 const actividad = (actividadEl?.value || '').trim();
 
                 if (!area) {
+                    expandirFila(item);
                     limpiarBordes(item);
                     if (areaEl) {
-                        areaEl.style.borderColor = '#dc3545';
-                        areaEl.style.borderWidth = '2px';
+                        areaEl.classList.add('campo-error','shake');
                         areaEl.focus();
+                        setTimeout(() => areaEl.classList.remove('shake'), 500);
                     }
                     mostrarToastError(`Fila ${i + 1}: Debe seleccionar un Área de formación.`);
                     return false;
                 }
 
+                // Actividad Curricular se valida después de dominio/competencia/resultado/criterio
+
+                // Validar que exista al menos un criterio seleccionado en la fila
+                // Primero validar dependencias: dominios, competencias y resultados
+                const idx = parseInt(item.getAttribute('data-index'), 10);
+                const dominiosContainer = item.querySelector(`#dominios-${idx}`);
+                const dominiosMarcados = item.querySelectorAll(`#dominios-${idx} .dominio-checkbox:checked`);
+                if (!dominiosMarcados || dominiosMarcados.length === 0) {
+                    expandirFila(item);
+                    if (dominiosContainer) {
+                        dominiosContainer.classList.add('campo-error','shake');
+                        setTimeout(() => dominiosContainer.classList.remove('shake'), 500);
+                        const firstDomCb = dominiosContainer.querySelector('.dominio-checkbox');
+                        if (firstDomCb) { firstDomCb.focus(); }
+                        dominiosContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos un Dominio.`);
+                    return false;
+                }
+
+                // Validación por DOMINIO: cada dominio debe tener al menos una competencia, un resultado y un criterio
+                const selectedDominos = Array.from(item.querySelectorAll(`#dominios-${idx} .dominio-checkbox:checked`)).map(cb => cb.value);
+                for (let d = 0; d < selectedDominos.length; d++) {
+                    const detId = selectedDominos[d];
+                    const compWrap = item.querySelector(`#competencias-${idx}-${detId}`);
+                    const resWrap = item.querySelector(`#resultados-${idx}-${detId}`);
+                    const critWrap = item.querySelector(`#criterios-${idx}-${detId}`);
+
+                    const compChecked = compWrap ? compWrap.querySelectorAll('.competencia-checkbox:checked') : [];
+                    if (!compChecked || compChecked.length === 0) {
+                        expandirFila(item);
+                        if (compWrap) {
+                            compWrap.classList.add('campo-error','shake');
+                            setTimeout(() => compWrap.classList.remove('shake'), 500);
+                            const firstCompCb = compWrap.querySelector('.competencia-checkbox');
+                            if (firstCompCb) { firstCompCb.focus(); }
+                            compWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        mostrarToastError(`Fila ${i + 1}: En cada dominio, marque al menos una Competencia.`);
+                        return false;
+                    }
+
+                    const resChecked = resWrap ? resWrap.querySelectorAll('.resultado-checkbox:checked') : [];
+                    if (!resChecked || resChecked.length === 0) {
+                        expandirFila(item);
+                        if (resWrap) {
+                            resWrap.classList.add('campo-error','shake');
+                            setTimeout(() => resWrap.classList.remove('shake'), 500);
+                            const firstResCb = resWrap.querySelector('.resultado-checkbox');
+                            if (firstResCb) { firstResCb.focus(); }
+                            resWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        mostrarToastError(`Fila ${i + 1}: En cada dominio, marque al menos un Resultado de Aprendizaje.`);
+                        return false;
+                    }
+
+                    const critChecked = critWrap ? critWrap.querySelectorAll('input[type="checkbox"]:checked') : [];
+                    if (!critChecked || critChecked.length === 0) {
+                        expandirFila(item);
+                        if (critWrap) {
+                            critWrap.classList.add('campo-error','shake');
+                            setTimeout(() => critWrap.classList.remove('shake'), 500);
+                            const firstCritCb = critWrap.querySelector('input[type="checkbox"]');
+                            if (firstCritCb) { firstCritCb.focus(); }
+                            critWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        mostrarToastError(`Fila ${i + 1}: En cada dominio, marque al menos un Criterio de Logro.`);
+                        return false;
+                    }
+                }
+
                 if (!actividad) {
+                    expandirFila(item);
                     limpiarBordes(item);
                     if (actividadEl) {
-                        actividadEl.style.borderColor = '#dc3545';
-                        actividadEl.style.borderWidth = '2px';
+                        actividadEl.classList.add('campo-error','shake');
                         actividadEl.focus();
+                        setTimeout(() => actividadEl.classList.remove('shake'), 500);
                     }
                     mostrarToastError(`Fila ${i + 1}: Debe seleccionar una Actividad Curricular.`);
                     return false;
                 }
+                // Validaciones adicionales: contenidos, bibliografía, metodologías, estrategias y SCT-Chile
+                const contenidosEl = item.querySelector('textarea[name^="filas"][name$="[contenidos]"]');
+                const bibliografiaEl = item.querySelector('textarea[name^="filas"][name$="[bibliografia]"]');
+                const metodologiasEl = item.querySelector('textarea[name^="filas"][name$="[metodologias]"]');
+                const estrategiasEl = item.querySelector('textarea[name^="filas"][name$="[estrategias]"]');
+                const sctEl = item.querySelector('input[name^="filas"][name$="[sct_chile]"]');
 
-                // Validar que exista al menos un criterio seleccionado en la fila
-                const criteriosMarcados = item.querySelectorAll('.criterios-checkboxes input[type="checkbox"]:checked');
-                if (!criteriosMarcados || criteriosMarcados.length === 0) {
-                    mostrarToastError(`Fila ${i + 1}: Debe seleccionar al menos un Criterio de Logro.`);
+                if (!contenidosEl || !bibliografiaEl || !metodologiasEl || !estrategiasEl || !sctEl) {
+                    mostrarToastError(`Fila ${i + 1}: Campos faltantes en la estructura de la fila.`);
+                    return false;
+                }
+
+                const contenidosVal = (contenidosEl.value || '').trim();
+                const bibliografiaVal = (bibliografiaEl.value || '').trim();
+                const metodologiasVal = (metodologiasEl.value || '').trim();
+                const estrategiasVal = (estrategiasEl.value || '').trim();
+                const sctVal = (sctEl.value || '').trim();
+
+                if (!contenidosVal) {
+                    expandirFila(item);
+                    contenidosEl.classList.add('campo-error','shake');
+                    contenidosEl.focus();
+                    contenidosEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => contenidosEl.classList.remove('shake'), 500);
+                    mostrarToastError(`Fila ${i + 1}: Debe completar Contenidos/Saberes.`);
+                    return false;
+                }
+                if (!bibliografiaVal) {
+                    expandirFila(item);
+                    bibliografiaEl.classList.add('campo-error','shake');
+                    bibliografiaEl.focus();
+                    bibliografiaEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => bibliografiaEl.classList.remove('shake'), 500);
+                    mostrarToastError(`Fila ${i + 1}: Debe completar Bibliografía.`);
+                    return false;
+                }
+                if (!metodologiasVal) {
+                    expandirFila(item);
+                    metodologiasEl.classList.add('campo-error','shake');
+                    metodologiasEl.focus();
+                    metodologiasEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => metodologiasEl.classList.remove('shake'), 500);
+                    mostrarToastError(`Fila ${i + 1}: Debe completar Metodologías Activas.`);
+                    return false;
+                }
+                if (!estrategiasVal) {
+                    expandirFila(item);
+                    estrategiasEl.classList.add('campo-error','shake');
+                    estrategiasEl.focus();
+                    estrategiasEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => estrategiasEl.classList.remove('shake'), 500);
+                    mostrarToastError(`Fila ${i + 1}: Debe completar Estrategias.`);
+                    return false;
+                }
+                if (sctVal === '' || isNaN(Number(sctVal))) {
+                    expandirFila(item);
+                    sctEl.classList.add('campo-error','shake');
+                    sctEl.focus();
+                    sctEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => sctEl.classList.remove('shake'), 500);
+                    mostrarToastError(`Fila ${i + 1}: Debe ingresar un valor numérico en SCT-Chile.`);
                     return false;
                 }
             }
@@ -1273,6 +1453,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Clear error styles on input/change
+            const clearOnEvents = ['input','change'];
+            const clearError = (el) => el.classList.remove('campo-error');
+            document.addEventListener('input', (e) => {
+                const t = e.target;
+                if (t && (t.matches('select') || t.matches('textarea') || t.matches('input'))) {
+                    clearError(t);
+                }
+                // Clear container error for checkbox groups
+                if (t && t.matches('input[type="checkbox"]')) {
+                    const wrap = t.closest('.competencias-checkboxes, .resultados-checkboxes, .criterios-checkboxes');
+                    if (wrap) clearError(wrap);
+                    const dominiosWrap = t.closest('#dominios-' + (t.id?.split('_')[1] || ''));
+                    if (dominiosWrap) clearError(dominiosWrap);
+                }
+            });
+            document.addEventListener('change', (e) => {
+                const t = e.target;
+                if (t && (t.matches('select') || t.matches('textarea') || t.matches('input'))) {
+                    clearError(t);
+                }
+                if (t && t.matches('input[type="checkbox"]')) {
+                    const wrap = t.closest('.competencias-checkboxes, .resultados-checkboxes, .criterios-checkboxes');
+                    if (wrap) clearError(wrap);
+                    const dominiosWrap = t.closest('.dominios-checkboxes');
+                    if (dominiosWrap) clearError(dominiosWrap);
+                }
+            });
             // Inicializar validación para todos los campos de Resultado de Aprendizaje
             document.querySelectorAll('textarea.campo-resultado').forEach((campo) => {
                 if (campo.id) {
@@ -1334,12 +1542,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             .then(response => response.json())
                             .then(data => {
                                 if (data.success) {
-                                    // Mostrar toast de éxito
-                                    mostrarToastExito(data.message, 1500);
-                                    // Recargar la página después de 1.5 segundos
-                                    setTimeout(() => {
-                                        location.reload();
-                                    }, 1500);
+                                    // SweetAlert2 de éxito con recarga
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'Guardado',
+                                        text: data.message || 'Matriz editada correctamente',
+                                        showConfirmButton: false,
+                                        timer: 1500
+                                    }).then(() => {
+                                        window.location.reload();
+                                    });
                                 } else {
                                     mostrarToastError(data.message);
                                 }
@@ -1412,6 +1624,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </script>
 
     <style>
+        .campo-error {
+            border-color: #dc3545 !important;
+            border-width: 2px !important;
+        }
+        .shake {
+            animation: shake 0.2s linear 0s 2;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-3px); }
+            50% { transform: translateX(3px); }
+            75% { transform: translateX(-3px); }
+            100% { transform: translateX(0); }
+        }
         /* Toast flotante */
         .toast-container {
             position: fixed;
@@ -1491,6 +1717,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             height: auto;
             min-height: 60px;
             overflow-y: hidden;
+        }
+
+        /* Group container error visuals */
+        .dominios-checkboxes.campo-error,
+        .competencias-checkboxes.campo-error,
+        .resultados-checkboxes.campo-error,
+        .criterios-checkboxes.campo-error {
+            border-color: #dc3545 !important;
+            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
         }
     </style>
 </body>
