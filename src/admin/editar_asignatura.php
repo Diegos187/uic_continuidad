@@ -70,7 +70,7 @@ if (!$datos_asignatura) {
                     <div class="card-body">
                         <?php
                         if (!empty($error)) echo mostrarMensaje($error, 'error');
-                        if (!empty($success)) echo mostrarMensaje($success, 'success');
+                        // Éxito se mostrará con SweetAlert2
                         ?>
                         
                         <form method="POST">
@@ -122,5 +122,23 @@ if (!$datos_asignatura) {
     </div>
     <?php include '../../includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <?php if (!empty($success)): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Actividad curricular actualizada',
+                    text: <?php echo json_encode($success); ?>,
+                    timer: 1800,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.href = 'asignaturas.php';
+                });
+            }
+        });
+    </script>
+    <?php endif; ?>
 </body>
 </html>
