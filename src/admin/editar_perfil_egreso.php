@@ -397,6 +397,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
 
                             <div class="accordion" id="filas-container"></div>
+                            <!-- Botón adicional al final para agregar más dominios -->
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar Dominio</button>
+                            </div>
 
                             <div class="d-grid gap-2 mt-3">
                                 <button type="submit" class="btn btn-primary">Guardar Cambios</button>
@@ -569,7 +573,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>`;
         }
 
-        function agregarFila(datos = null) {
+        // Auto-resize helper for textareas inside a container
+        function autoResizeTextareas(container) {
+            if (!container) return;
+            container.querySelectorAll('textarea').forEach(ta => {
+                ta.style.height = 'auto';
+                ta.style.overflow = 'hidden';
+                ta.style.height = (ta.scrollHeight) + 'px';
+            });
+        }
+
+        function agregarFila(datos = null, autoExpand = true) {
             const cont = document.getElementById('filas-container');
             const html = plantillaFila(filaCounter, datos);
             const tmp = document.createElement('div');
@@ -607,8 +621,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             updateTitle();
 
             filaCounter++;
-            colapsarTodas();
-            expandirUltima();
+            // Mantener todas colapsadas si autoExpand es false (vista inicial)
+            if (autoExpand) {
+                colapsarTodas();
+                expandirUltima();
+            } else {
+                // Quitar la clase show del item recién creado si vino con ella
+                const collapse = node.querySelector('.accordion-collapse');
+                if (collapse && collapse.classList.contains('show')) {
+                    collapse.classList.remove('show');
+                }
+            }
+
+            // Conectar evento de expansión para auto-resize de textareas
+            const collapseEl = node.querySelector('.accordion-collapse');
+            if (collapseEl) {
+                collapseEl.addEventListener('shown.bs.collapse', () => autoResizeTextareas(node));
+            }
         }
 
         function colapsarTodas() {
@@ -649,6 +678,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     agregarResultado(filaIndex, compCount, ra);
                 });
             }
+
+            // Ajustar tamaños tras insertar competencia
+            autoResizeTextareas(node);
         }
 
         function eliminarCompetencia(filaIndex, compIndex) {
@@ -675,6 +707,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     agregarCriterio(filaIndex, compIndex, raCount, cl);
                 });
             }
+
+            autoResizeTextareas(node);
         }
 
         function eliminarResultado(filaIndex, compIndex, raIndex) {
@@ -694,6 +728,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const tmp = document.createElement('div');
             tmp.innerHTML = html.trim();
             criteriosContainer.appendChild(tmp.firstChild);
+            autoResizeTextareas(tmp.firstChild);
         }
 
         function eliminarCriterio(filaIndex, compIndex, raIndex, clIndex) {
@@ -715,12 +750,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            ESTRUCTURA_EXISTENTE.forEach((detalle, idx) => {
-                agregarFila(detalle);
+            // Cargar filas existentes colapsadas
+            ESTRUCTURA_EXISTENTE.forEach((detalle) => {
+                agregarFila(detalle, false);
             });
 
+            // Si no hay filas existentes, agregar una inicial también colapsada
             if (ESTRUCTURA_EXISTENTE.length === 0) {
-                agregarFila();
+                agregarFila(null, false);
             }
 
             // activar auto-grow
@@ -737,6 +774,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (e.target && (e.target.matches('[onclick^="agregarCompetencia"]') || e.target.matches('[onclick^="agregarResultado"]') || e.target.matches('[onclick^="agregarCriterio"]'))) {
                     setTimeout(initAutoGrow, 50);
                 }
+            });
+
+            // Vincular auto-resize en expansión para filas ya creadas
+            document.querySelectorAll('#filas-container .accordion-collapse').forEach(col => {
+                const item = col.closest('.accordion-item');
+                col.addEventListener('shown.bs.collapse', () => autoResizeTextareas(item));
             });
         });
     </script>

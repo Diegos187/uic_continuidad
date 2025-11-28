@@ -309,6 +309,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                                     <!-- Las filas dinámicas se insertan aquí por JS -->
                                 </div>
 
+                                <!-- Botón adicional al final para agregar más filas -->
+                                <div class="d-flex justify-content-end mt-3">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar otra fila</button>
+                                </div>
+
                                 <div class="d-grid gap-2 mt-3">
                                     <button type="submit" class="btn btn-primary">Crear Nueva Versión</button>
                                 </div>
@@ -452,7 +457,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             });
         }
 
-        function agregarFila() {
+        function agregarFila(doScroll = true) {
             const cont = document.getElementById('filas-container');
             const html = plantillaFila(filaCounter);
             const tmp = document.createElement('div');
@@ -465,6 +470,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             // Colapsar otras y expandir nueva
             cont.querySelectorAll('.accordion-collapse').forEach(c => c.classList.remove('show'));
             node.querySelector('.accordion-collapse').classList.add('show');
+
+            // Scroll suave al inicio de la nueva fila (header button)
+            if (doScroll) {
+                const headerBtn = node.querySelector('.accordion-button');
+                if (headerBtn) {
+                    headerBtn.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
 
             filaCounter++;
         }
@@ -693,11 +706,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 </div>
                 <div class="mb-2"><strong>Resultados de Aprendizaje</strong></div>
                 <div class="alert alert-light border p-3 mb-3">
-                    <div id="resultados-${index}-${detalleId}" class="resultados-checkboxes"></div>
+                    <div id="resultados-${index}-${detalleId}" class="resultados-checkboxes"><div class="text-muted">Seleccione competencias primero.</div></div>
                 </div>
                 <div class="mb-2"><strong>Criterios de Logro</strong></div>
                 <div class="alert alert-light border p-3 mb-3">
-                    <div id="criterios-${index}-${detalleId}" class="criterios-checkboxes"></div>
+                    <div id="criterios-${index}-${detalleId}" class="criterios-checkboxes"><div class="text-muted">Seleccione resultados de aprendizaje primero.</div></div>
                 </div>
                 <input type="hidden" name="filas[${index}][perfil_egreso_detalle_id]" value="${detalleId}">
             `;
@@ -763,9 +776,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             const resCont = pane.querySelector(`#resultados-${index}-${detalleId}`);
             resCont.innerHTML = '';
             const critCont = pane.querySelector(`#criterios-${index}-${detalleId}`);
-            critCont.innerHTML = '';
+            // Siempre mostrar placeholder inicial de criterios hasta que se seleccionen resultados
+            critCont.innerHTML = '<div class="text-muted">Seleccione resultados de aprendizaje primero.</div>';
             if (compIds.length === 0) {
-                resCont.innerHTML = '<div class="text-muted">Seleccione competencias para ver resultados.</div>';
+                resCont.innerHTML = '<div class="text-muted">Seleccione competencias primero.</div>';
                 return;
             }
             fetch(`../../src/api/atributos.php?action=resultados&perfil_id=${document.getElementById('perfil_id').value}&competencia_ids=${encodeURIComponent(compIds.join(','))}`)
@@ -841,7 +855,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             const critCont = pane.querySelector(`#criterios-${index}-${detalleId}`);
             critCont.innerHTML = '';
             if (resIds.length === 0) {
-                critCont.innerHTML = '<div class="text-muted">Seleccione resultados para ver criterios.</div>';
+                critCont.innerHTML = '<div class="text-muted">Seleccione resultados de aprendizaje primero.</div>';
                 return;
             }
             fetch(`../../src/api/atributos.php?action=criterios&perfil_id=${document.getElementById('perfil_id').value}&resultado_ids=${encodeURIComponent(resIds.join(','))}`)
@@ -1054,6 +1068,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                     }
                 });
             }
+
+            // Agregar automáticamente la primera fila para facilitar el llenado inicial
+            try { agregarFila(false); } catch (e) { console.error('No se pudo agregar la fila inicial:', e); }
 
             const perfil_id_select = document.getElementById('perfil_id');
             if (perfil_id_select) {

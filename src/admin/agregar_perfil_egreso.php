@@ -260,6 +260,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="accordion" id="filas-container"></div>
 
+                            <!-- Botón adicional al final para agregar dominio -->
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar Dominio</button>
+                            </div>
+
                             <div class="d-grid gap-2 mt-3">
                                 <button type="submit" class="btn btn-primary">Guardar Perfil de Egreso</button>
                             </div>

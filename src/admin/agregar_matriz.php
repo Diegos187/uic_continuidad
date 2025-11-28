@@ -256,6 +256,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <!-- Las filas dinámicas se insertan aquí por JS -->
                             </div>
 
+                            <!-- Botón adicional al final para agregar más filas -->
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar otra fila</button>
+                            </div>
+
                             <div class="d-grid gap-2 mt-3">
                                 <button type="submit" class="btn btn-primary">Crear Matriz</button>
                             </div>
@@ -387,7 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             });
         }
 
-        function agregarFila() {
+        function agregarFila(doScroll = true) {
             const cont = document.getElementById('filas-container');
             const html = plantillaFila(filaCounter);
             const tmp = document.createElement('div');
@@ -400,6 +405,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Colapsar otras y expandir nueva
             cont.querySelectorAll('.accordion-collapse').forEach(c => c.classList.remove('show'));
             node.querySelector('.accordion-collapse').classList.add('show');
+
+            // Scroll suave al header de la nueva fila
+            if (doScroll) {
+                const headerBtn = node.querySelector('.accordion-button');
+                if (headerBtn) {
+                    headerBtn.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
 
             filaCounter++;
         }
@@ -1215,7 +1228,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 perfilSel.addEventListener('change', onPerfilChange);
             }
 
-            agregarFila();
+            agregarFila(false);
         });
 
         // Funciones de toast

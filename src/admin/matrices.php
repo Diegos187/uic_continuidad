@@ -96,7 +96,6 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
             <div class="col-auto">
                 <a href="dashboard.php" class="btn btn-secondary me-2">Volver</a>
                 <a href="agregar_matriz.php" class="btn btn-primary">Nueva Matriz</a>
-                <a href="atributos.php" class="btn btn-secondary">Atributos del Perfil de Egreso</a>
             </div>
         </div>
 

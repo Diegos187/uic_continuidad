@@ -109,21 +109,24 @@ if (!empty($filasActuales)) {
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $carrera_id = isset($_POST['carrera_id']) ? (int)limpiarDatos($_POST['carrera_id']) : null;
+    $nombre_matriz = isset($_POST['nombre_matriz']) ? trim(limpiarDatos($_POST['nombre_matriz'])) : '';
     $descripcion_version = isset($_POST['descripcion_version']) ? trim(limpiarDatos($_POST['descripcion_version'])) : '';
     $filasPost = isset($_POST['filas']) && is_array($_POST['filas']) ? $_POST['filas'] : [];
 
     if (!$carrera_id) {
         $error = 'Debe seleccionar una carrera.';
+    } elseif ($nombre_matriz === '') {
+        $error = 'Debe ingresar un nombre para la matriz.';
     } elseif ($descripcion_version === '') {
-        $error = 'Debe ingresar un nombre o descripción para la matriz.';
+        $error = 'Debe ingresar un nombre o descripción para la versión.';
     } elseif (empty($filasPost)) {
         $error = 'Debe agregar al menos una fila a la matriz.';
     } else {
         try {
-            // PASO 1: Actualizar nombre de la matriz
+            // PASO 1: Actualizar nombre y descripción de la matriz
             $sql = "UPDATE matrices SET nombre = :nombre, descripcion = :descripcion WHERE id = :id";
             $stmt = $conexion->prepare($sql);
-            $stmt->bindParam(':nombre', $descripcion_version);
+            $stmt->bindParam(':nombre', $nombre_matriz);
             $stmt->bindParam(':descripcion', $descripcion_version);
             $stmt->bindParam(':id', $matriz_id, PDO::PARAM_INT);
             $stmt->execute();
@@ -337,19 +340,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <div class="mb-3">
-                                <label for="descripcion_version" class="form-label">Nombre/Descripción de la matriz</label>
-                                <input type="text" class="form-control" id="descripcion_version" name="descripcion_version" placeholder="Ej: Matriz cohorte 2026 - Plan diurno" value="<?php echo htmlspecialchars($versionActual['descripcion'] ?? ''); ?>" required />
-                            </div>
-
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="m-0">Filas de la Matriz</h5>
-                                <button type="button" class="btn btn-sm btn-primary" onclick="agregarFila()">Agregar otra fila</button>
+                                <label for="nombre_matriz" class="form-label">Nombre de la Matriz</label>
+                                <input type="text" class="form-control mb-3" id="nombre_matriz" name="nombre_matriz" placeholder="Ej: Matriz de Coherencia Curricular 2026" value="<?php echo htmlspecialchars($matrizInfo['nombre'] ?? ''); ?>" required />
+                                <label for="descripcion_version" class="form-label">Nombre/Descripción de la Versión</label>
+                                <input type="text" class="form-control mb-3" id="descripcion_version" name="descripcion_version" placeholder="Ej: v1.0 - Plan Diurno / Versión inicial aprobada" value="<?php echo htmlspecialchars($versionActual['descripcion'] ?? ''); ?>" required />
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="m-0">Filas de la Matriz</h5>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="agregarFila()">Agregar otra fila</button>
+                                </div>
                             </div>
 
                             <div class="accordion" id="filas-container">
                                 <!-- Las filas dinámicas se insertan aquí por JS -->
                             </div>
 
+                            <!-- Botón adicional al final para agregar más filas -->
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar otra fila</button>
+                            </div>
                             <div class="d-grid gap-2 mt-3">
                                 <button type="submit" class="btn btn-primary">Guardar Cambios</button>
                             </div>
@@ -516,7 +524,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             });
         }
 
-        function agregarFila() {
+        function agregarFila(doScroll = true) {
             const cont = document.getElementById('filas-container');
             const html = plantillaFila(filaCounter, null, true);
             const tmp = document.createElement('div');
@@ -529,6 +537,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Colapsar otras y expandir nueva
             cont.querySelectorAll('.accordion-collapse').forEach(c => c.classList.remove('show'));
             node.querySelector('.accordion-collapse').classList.add('show');
+
+            // Scroll suave al header de la nueva fila
+            if (doScroll) {
+                const headerBtn = node.querySelector('.accordion-button');
+                if (headerBtn) {
+                    headerBtn.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
 
             filaCounter++;
         }
@@ -1156,6 +1172,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         function validarFormulario() {
             const carreraId = document.getElementById('carrera_id').value.trim();
             const perfilId = document.getElementById('perfil_id').value.trim();
+            const nombreMatriz = document.getElementById('nombre_matriz').value.trim();
             const descripcionVersion = document.getElementById('descripcion_version').value.trim();
 
             if (!carreraId) {
@@ -1168,8 +1185,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 return false;
             }
 
+            if (!nombreMatriz) {
+                mostrarToastError('Debe ingresar un Nombre de la matriz.');
+                return false;
+            }
+
             if (!descripcionVersion) {
-                mostrarToastError('Debe ingresar un Nombre/Descripción para la matriz.');
+                mostrarToastError('Debe ingresar una Descripción para la versión.');
                 return false;
             }
 
@@ -1365,7 +1387,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         });
                     } else {
                         // Si no hay filas, agregar una vacía
-                        agregarFila();
+                        agregarFila(false);
                     }
                 }, 300);
             } else {
@@ -1383,7 +1405,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         filaCounter++;
                     });
                 } else {
-                    agregarFila();
+                    agregarFila(false);
                 }
             }
         });
