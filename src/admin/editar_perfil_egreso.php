@@ -99,15 +99,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Debe ingresar un nombre (versión) para el perfil de egreso.';
     } else {
         $filasValidas = [];
-        $errorArea = false;
-        $errorCampos = false;
-        $errorCompetencias = false;
+        $errorArea = false; // área faltante cuando hay dominio
+        $errorCampos = false; // faltan competencias
+        $errorCompetencias = false; // campos código/descripcion competencia incompletos
+        $errorDominio = false; // área seleccionada sin dominio
+        $errorFaltanResultados = false; // falta al menos un RA por competencia
+        $errorResultados = false; // código/descripcion RA incompletos
+        $errorFaltanCriterios = false; // falta criterio por RA
+        $errorCriterios = false; // código/descripcion criterio incompletos
 
         foreach ($filas as $f) {
             $dom = isset($f['dominio']) ? trim($f['dominio']) : '';
             $areaId = isset($f['area_formacion_id']) ? (int)$f['area_formacion_id'] : 0;
             $competencias = isset($f['competencias']) && is_array($f['competencias']) ? $f['competencias'] : [];
 
+            // Si se seleccionó área pero no dominio -> errorDominio
+            if ($areaId > 0 && $dom === '') {
+                $errorDominio = true;
+                break;
+            }
+
+            // Sólo validar filas donde se ingresó dominio (flujo existente)
             if ($dom !== '') {
                 if ($areaId <= 0) {
                     $errorArea = true;
@@ -134,8 +146,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if (empty($competenciasValidas)) {
-                    $errorCampos = true;
+                    $errorCampos = true; // faltan competencias
                     break;
+                }
+
+                // Validar resultados y criterios
+                foreach ($competenciasValidas as $compVal) {
+                    $resultadosLista = $compVal['resultados'];
+                    $resultadosValidos = [];
+                    foreach ($resultadosLista as $ra) {
+                        $raCodigo = isset($ra['codigo']) ? trim($ra['codigo']) : '';
+                        $raDescripcion = isset($ra['descripcion']) ? trim($ra['descripcion']) : '';
+                        if ($raCodigo !== '' || $raDescripcion !== '') {
+                            if ($raCodigo === '' || $raDescripcion === '') {
+                                $errorResultados = true; break 3; // salir de todas las validaciones
+                            }
+                            $criteriosLista = isset($ra['criterios']) && is_array($ra['criterios']) ? $ra['criterios'] : [];
+                            $criteriosValidos = [];
+                            foreach ($criteriosLista as $cl) {
+                                $clCodigo = isset($cl['codigo']) ? trim($cl['codigo']) : '';
+                                $clDescripcion = isset($cl['descripcion']) ? trim($cl['descripcion']) : '';
+                                if ($clCodigo !== '' || $clDescripcion !== '') {
+                                    if ($clCodigo === '' || $clDescripcion === '') {
+                                        $errorCriterios = true; break 4;
+                                    }
+                                    $criteriosValidos[] = $cl;
+                                }
+                            }
+                            if (empty($criteriosValidos)) { $errorFaltanCriterios = true; break 3; }
+                            $resultadosValidos[] = $ra;
+                        }
+                    }
+                    if (empty($resultadosValidos)) { $errorFaltanResultados = true; break 2; }
                 }
 
                 $filasValidas[] = [
@@ -147,14 +189,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($errorCampos) {
-            $error = 'Debe agregar al menos una competencia en cada dominio.';
+        if ($errorDominio) {
+            $error = 'Debe ingresar el dominio cuando selecciona un área de formación.';
         } elseif ($errorArea) {
             $error = 'Debe seleccionar un área de formación en cada fila ingresada.';
+        } elseif ($errorCampos) {
+            $error = 'Debe agregar al menos una competencia en cada dominio.';
         } elseif ($errorCompetencias) {
             $error = 'Los campos Código y Descripción son obligatorios en cada competencia.';
+        } elseif ($errorFaltanResultados) {
+            $error = 'Cada competencia debe tener al menos un resultado de aprendizaje.';
+        } elseif ($errorResultados) {
+            $error = 'Todos los resultados de aprendizaje deben tener código y descripción.';
+        } elseif ($errorFaltanCriterios) {
+            $error = 'Cada resultado de aprendizaje debe tener al menos un criterio de logro.';
+        } elseif ($errorCriterios) {
+            $error = 'Todos los criterios de logro deben tener código y descripción.';
         } elseif (empty($filasValidas)) {
-            $error = 'Debe completar al menos una fila (Dominio y Competencia).';
+            $error = 'Debe completar al menos una fila (Área, Dominio, Competencias, Resultados y Criterios).';
         } else {
             try {
                 $conn->beginTransaction();
@@ -414,6 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php include '../../includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         let filaCounter = 0;
         let competenciaCounters = {};
@@ -790,6 +843,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             min-height: 80px;
         }
 
+        .campo-error {
+            border: 2px solid #dc3545 !important;
+            background-color: #fff5f5;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+            100% { transform: translateX(0); }
+        }
+
+        .shake-error {
+            animation: shake 0.45s ease;
+        }
+
         .accordion-collapse {
             transition: height 0.35s ease, opacity 0.35s ease, margin 0.35s ease, padding 0.35s ease !important;
             overflow: hidden !important;
@@ -887,36 +958,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     </style>
 
-    <div id="toast-container" class="toast-container"></div>
+    <div id="toast-container" class="toast-container" style="display:none"></div>
 
     <script>
-        function mostrarToastExito(mensaje = 'Cambios guardados correctamente', duracion = 1500) {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = 'toast-success';
-            toast.textContent = mensaje;
-            container.appendChild(toast);
-
-            setTimeout(() => {
-                toast.classList.add('hidden');
-                setTimeout(() => {
-                    toast.remove();
+        function mostrarToastExito(mensaje = 'Cambios guardados correctamente') {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Perfil actualizado',
+                    text: mensaje,
+                    timer: 1800,
+                    showConfirmButton: false
+                }).then(() => {
+                    // Después del cierre del modal (auto o manual) recargar para ver cambios persistentes
                     location.reload();
-                }, 300);
-            }, duracion);
+                });
+            } else {
+                // Fallback al antiguo toast si SweetAlert2 no está disponible
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = 'toast-success';
+                toast.textContent = mensaje;
+                container.style.display = 'block';
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                    setTimeout(() => { toast.remove(); location.reload(); }, 300);
+                }, 1500);
+            }
         }
 
         function mostrarToastError(mensaje = 'Error al guardar') {
+            // Solo toast no modal para no interrumpir flujo
             const container = document.getElementById('toast-container');
+            if (container.style.display === 'none') container.style.display = 'block';
             const toast = document.createElement('div');
             toast.className = 'toast-error';
             toast.textContent = mensaje;
             container.appendChild(toast);
-
             setTimeout(() => {
                 toast.classList.add('hidden');
                 setTimeout(() => toast.remove(), 300);
-            }, 4000);
+            }, 3500);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -932,41 +1015,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         return;
                     }
 
+                    const expandAndFocus = (item, el) => {
+                        if (!item) return;
+                        // Expand the accordion item
+                        const collapse = item.querySelector('.accordion-collapse');
+                        if (collapse && !collapse.classList.contains('show')) {
+                            collapse.classList.add('show');
+                        }
+                        // Scroll into view
+                        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // Focus element if provided
+                        if (el && typeof el.focus === 'function') {
+                            setTimeout(() => el.focus(), 150);
+                        }
+                    };
+
+                    const clearErrores = () => {
+                        document.querySelectorAll('.campo-error').forEach(n => {
+                            n.classList.remove('campo-error','shake-error');
+                        });
+                    };
+
+                    const marcarError = (el) => {
+                        if (!el) return;
+                        el.classList.add('campo-error');
+                        // trigger shake animation
+                        el.classList.add('shake-error');
+                        setTimeout(() => el.classList.remove('shake-error'), 600);
+                    };
+
+                    const reportError = (msg, item, el) => {
+                        expandAndFocus(item, el);
+                        marcarError(el);
+                        mostrarToastError(msg);
+                    };
+
+                    clearErrores();
+
                     let filasValidas = 0;
                     for (let item of filasItems) {
                         const dominio = item.querySelector('.campo-dominio')?.value.trim() || '';
                         const area = item.querySelector('.campo-area')?.value || '';
 
+                        // Si hay área sin dominio -> error inmediato
+                        if (area && !dominio) {
+                            reportError('Debe ingresar el dominio cuando selecciona un área de formación', item, item.querySelector('.campo-dominio'));
+                            return;
+                        }
+
+                        // Validar sólo filas con dominio (como en servidor)
                         if (!dominio) continue;
 
                         if (!area) {
-                            mostrarToastError('Debe seleccionar un área de formación en cada dominio');
+                            reportError('Debe seleccionar un área de formación en cada dominio', item, item.querySelector('.campo-area'));
                             return;
                         }
 
                         const competencias = item.querySelectorAll('.competencia-card');
                         if (competencias.length === 0) {
-                            mostrarToastError('Cada dominio debe tener al menos una competencia');
+                            reportError('Cada dominio debe tener al menos una competencia', item, item.querySelector('button[onclick^="agregarCompetencia"]'));
                             return;
                         }
 
-                        let competenciasValidas = 0;
                         for (let comp of competencias) {
                             const codigo = comp.querySelector('.campo-comp-codigo')?.value.trim() || '';
                             const desc = comp.querySelector('.campo-comp-desc')?.value.trim() || '';
-
                             if (!codigo || !desc) {
-                                mostrarToastError('Todas las competencias deben tener código y descripción');
+                                reportError('Todas las competencias deben tener código y descripción', item, !codigo ? comp.querySelector('.campo-comp-codigo') : comp.querySelector('.campo-comp-desc'));
                                 return;
                             }
-                            competenciasValidas++;
+                            // Resultados por competencia
+                            const resultados = comp.querySelectorAll('.resultado-card');
+                            if (resultados.length === 0) {
+                                reportError('Cada competencia debe tener al menos un resultado de aprendizaje', item, comp.querySelector('button[onclick^="agregarResultado"]'));
+                                return;
+                            }
+                            for (let ra of resultados) {
+                                const raCodigo = ra.querySelector('.campo-ra-codigo')?.value.trim() || '';
+                                const raDesc = ra.querySelector('.campo-ra-desc')?.value.trim() || '';
+                                if (!raCodigo || !raDesc) {
+                                    reportError('Todos los resultados de aprendizaje deben tener código y descripción', item, !raCodigo ? ra.querySelector('.campo-ra-codigo') : ra.querySelector('.campo-ra-desc'));
+                                    return;
+                                }
+                                const criterios = ra.querySelectorAll('.criterio-card');
+                                if (criterios.length === 0) {
+                                    reportError('Cada resultado de aprendizaje debe tener al menos un criterio de logro', item, ra.querySelector('button[onclick^="agregarCriterio"]'));
+                                    return;
+                                }
+                                for (let cl of criterios) {
+                                    const clCodigo = cl.querySelector('.campo-cl-codigo')?.value.trim() || '';
+                                    const clDesc = cl.querySelector('.campo-cl-desc')?.value.trim() || '';
+                                    if (!clCodigo || !clDesc) {
+                                        reportError('Todos los criterios de logro deben tener código y descripción', item, !clCodigo ? cl.querySelector('.campo-cl-codigo') : cl.querySelector('.campo-cl-desc'));
+                                        return;
+                                    }
+                                }
+                            }
                         }
-
-                        if (competenciasValidas > 0) filasValidas++;
+                        filasValidas++;
                     }
 
                     if (filasValidas === 0) {
-                        mostrarToastError('Debe completar al menos un dominio con competencias');
+                        mostrarToastError('Debe completar al menos un dominio con toda la jerarquía (Área, Dominio, Competencias, Resultados y Criterios)');
                         return;
                     }
 
@@ -1002,7 +1152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
             if (params.has('success')) {
-                mostrarToastExito();
+                mostrarToastExito('Cambios guardados correctamente');
             }
         });
     </script>

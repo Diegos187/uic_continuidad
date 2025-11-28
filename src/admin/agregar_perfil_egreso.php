@@ -46,49 +46,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($nombrePerfil === '') {
         $error = 'Debe ingresar un nombre (versión) para el perfil de egreso.';
     } else {
-        // Validar que haya al menos una fila válida
+        // Validación jerárquica completa (Área -> Dominio -> Competencias -> Resultados -> Criterios)
         $filasValidas = [];
-        $errorArea = false;
-        $errorCampos = false;
-        $errorCompetencias = false;
+        $errorArea = false; // falta área cuando hay dominio
+        $errorCampos = false; // faltan competencias
+        $errorCompetencias = false; // código/descripcion incompletos competencia
+        $errorDominio = false; // área seleccionada sin dominio
+        $errorFaltanResultados = false; // falta resultado por competencia
+        $errorResultados = false; // código/descripcion incompletos resultado
+        $errorFaltanCriterios = false; // falta criterio por resultado
+        $errorCriterios = false; // código/descripcion incompletos criterio
 
         foreach ($filas as $f) {
             $dom = isset($f['dominio']) ? trim($f['dominio']) : '';
             $areaId = isset($f['area_formacion_id']) ? (int)$f['area_formacion_id'] : 0;
             $competencias = isset($f['competencias']) && is_array($f['competencias']) ? $f['competencias'] : [];
 
-            // Si hay contenido en dominio
-            if ($dom !== '') {
-                // Validar que haya área seleccionada
-                if ($areaId <= 0) {
-                    $errorArea = true;
-                    break;
-                }
+            // Área seleccionada sin dominio
+            if ($areaId > 0 && $dom === '') { $errorDominio = true; break; }
 
-                // Validar que al menos haya una competencia
+            // Validar solo filas con dominio
+            if ($dom !== '') {
+                if ($areaId <= 0) { $errorArea = true; break; }
+
                 $competenciasValidas = [];
                 foreach ($competencias as $comp) {
                     $codigo = isset($comp['codigo']) ? trim($comp['codigo']) : '';
                     $descripcion = isset($comp['descripcion']) ? trim($comp['descripcion']) : '';
+                    $resultados = isset($comp['resultados']) && is_array($comp['resultados']) ? $comp['resultados'] : [];
 
                     if ($codigo !== '' || $descripcion !== '') {
-                        if ($codigo === '' || $descripcion === '') {
-                            $errorCompetencias = true;
-                            break 2;
+                        if ($codigo === '' || $descripcion === '') { $errorCompetencias = true; break 2; }
+                        // Validar resultados
+                        $resultadosValidos = [];
+                        foreach ($resultados as $ra) {
+                            $raCodigo = isset($ra['codigo']) ? trim($ra['codigo']) : '';
+                            $raDescripcion = isset($ra['descripcion']) ? trim($ra['descripcion']) : '';
+                            $criterios = isset($ra['criterios']) && is_array($ra['criterios']) ? $ra['criterios'] : [];
+                            if ($raCodigo !== '' || $raDescripcion !== '') {
+                                if ($raCodigo === '' || $raDescripcion === '') { $errorResultados = true; break 3; }
+                                $criteriosValidos = [];
+                                foreach ($criterios as $cl) {
+                                    $clCodigo = isset($cl['codigo']) ? trim($cl['codigo']) : '';
+                                    $clDescripcion = isset($cl['descripcion']) ? trim($cl['descripcion']) : '';
+                                    if ($clCodigo !== '' || $clDescripcion !== '') {
+                                        if ($clCodigo === '' || $clDescripcion === '') { $errorCriterios = true; break 4; }
+                                        $criteriosValidos[] = $cl;
+                                    }
+                                }
+                                if (empty($criteriosValidos)) { $errorFaltanCriterios = true; break 3; }
+                                $resultadosValidos[] = [
+                                    'codigo' => $raCodigo,
+                                    'descripcion' => $raDescripcion,
+                                    'criterios' => $criteriosValidos
+                                ];
+                            }
                         }
+                        if (empty($resultadosValidos)) { $errorFaltanResultados = true; break 2; }
                         $competenciasValidas[] = [
                             'codigo' => $codigo,
                             'descripcion' => $descripcion,
-                            'resultados' => isset($comp['resultados']) && is_array($comp['resultados']) ? $comp['resultados'] : []
+                            'resultados' => $resultadosValidos
                         ];
                     }
                 }
-
-                if (empty($competenciasValidas)) {
-                    $errorCampos = true;
-                    break;
-                }
-
+                if (empty($competenciasValidas)) { $errorCampos = true; break; }
                 $filasValidas[] = [
                     'area_formacion_id' => $areaId,
                     'dominio' => $dom,
@@ -97,14 +119,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($errorCampos) {
-            $error = 'Debe agregar al menos una competencia en cada dominio.';
+        if ($errorDominio) {
+            $error = 'Debe ingresar el dominio cuando selecciona un área de formación.';
         } elseif ($errorArea) {
             $error = 'Debe seleccionar un área de formación en cada fila ingresada.';
+        } elseif ($errorCampos) {
+            $error = 'Debe agregar al menos una competencia en cada dominio.';
         } elseif ($errorCompetencias) {
             $error = 'Los campos Código y Descripción son obligatorios en cada competencia.';
+        } elseif ($errorFaltanResultados) {
+            $error = 'Cada competencia debe tener al menos un resultado de aprendizaje.';
+        } elseif ($errorResultados) {
+            $error = 'Todos los resultados de aprendizaje deben tener código y descripción.';
+        } elseif ($errorFaltanCriterios) {
+            $error = 'Cada resultado de aprendizaje debe tener al menos un criterio de logro.';
+        } elseif ($errorCriterios) {
+            $error = 'Todos los criterios de logro deben tener código y descripción.';
         } elseif (empty($filasValidas)) {
-            $error = 'Debe completar al menos una fila (Dominio y Competencia).';
+            $error = 'Debe completar al menos una fila (Área, Dominio, Competencias, Resultados y Criterios).';
         } else {
             try {
                 $conn->beginTransaction();
@@ -228,6 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Agregar Perfil de Egreso - UTEM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 
 <body>
@@ -551,6 +584,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             min-height: 80px;
         }
 
+        .campo-error {
+            border: 2px solid #dc3545 !important;
+            background-color: #fff5f5;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+            100% { transform: translateX(0); }
+        }
+
+        .shake-error { animation: shake 0.45s ease; }
+
         /* Animación suave para accordion con transición de altura */
         .accordion-collapse {
             transition: height 0.35s ease, opacity 0.35s ease, margin 0.35s ease, padding 0.35s ease !important;
@@ -659,129 +708,153 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 
     <!-- Toast container -->
-    <div id="toast-container" class="toast-container"></div>
+    <div id="toast-container" class="toast-container" style="display:none"></div>
 
     <script>
-        function mostrarToastExito(mensaje = 'Perfil de egreso creado correctamente', duracion = 1500) {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = 'toast-success';
-            toast.textContent = mensaje;
-            container.appendChild(toast);
-
-            // Auto-remover después del tiempo especificado
-            setTimeout(() => {
-                toast.classList.add('hidden');
-                setTimeout(() => toast.remove(), 300);
-            }, duracion);
+        function mostrarToastExito(mensaje = 'Perfil de egreso creado correctamente', duracion = 1500, redirect = null) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Perfil creado',
+                    text: mensaje,
+                    timer: duracion,
+                    showConfirmButton: false
+                }).then(() => {
+                    if (redirect) { window.location.href = redirect; }
+                });
+            } else {
+                const container = document.getElementById('toast-container');
+                if (container.style.display === 'none') container.style.display = 'block';
+                const toast = document.createElement('div');
+                toast.className = 'toast-success';
+                toast.textContent = mensaje;
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                    setTimeout(() => { toast.remove(); if (redirect) window.location.href = redirect; }, 300);
+                }, duracion);
+            }
         }
 
         function mostrarToastError(mensaje = 'Error al guardar') {
             const container = document.getElementById('toast-container');
+            if (container.style.display === 'none') container.style.display = 'block';
             const toast = document.createElement('div');
             toast.className = 'toast-error';
             toast.textContent = mensaje;
             container.appendChild(toast);
-
-            // Auto-remover después de 4 segundos
             setTimeout(() => {
                 toast.classList.add('hidden');
                 setTimeout(() => toast.remove(), 300);
-            }, 4000);
+            }, 3500);
         }
 
-        // Interceptar envío del formulario
+        // Interceptar envío del formulario con validación jerárquica
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.querySelector('form');
-            if (form) {
-                form.addEventListener('submit', (e) => {
-                    e.preventDefault();
+            if (!form) return;
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
 
-                    // Validar que haya al menos una fila
-                    const filasContainer = document.getElementById('filas-container');
-                    const filasItems = filasContainer.querySelectorAll('.accordion-item');
-                    if (filasItems.length === 0) {
-                        mostrarToastError('Debe completar al menos un dominio');
-                        return;
-                    }
+                const filasContainer = document.getElementById('filas-container');
+                const filasItems = filasContainer.querySelectorAll('.accordion-item');
+                if (filasItems.length === 0) {
+                    mostrarToastError('Debe completar al menos un dominio');
+                    return;
+                }
 
-                    // Validar estructura de competencias
-                    let filasValidas = 0;
-                    for (let item of filasItems) {
-                        const dominio = item.querySelector('.campo-dominio')?.value.trim() || '';
-                        const area = item.querySelector('.campo-area')?.value || '';
+                const expandAndFocus = (item, el) => {
+                    if (!item) return;
+                    const collapse = item.querySelector('.accordion-collapse');
+                    if (collapse && !collapse.classList.contains('show')) collapse.classList.add('show');
+                    item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (el && typeof el.focus === 'function') setTimeout(() => el.focus(), 150);
+                };
 
-                        if (!dominio) continue;
+                const clearErrores = () => {
+                    document.querySelectorAll('.campo-error').forEach(n => n.classList.remove('campo-error','shake-error'));
+                };
 
-                        if (!area) {
-                            mostrarToastError('Debe seleccionar un área de formación en cada dominio');
-                            return;
+                const marcarError = (el) => {
+                    if (!el) return;
+                    el.classList.add('campo-error','shake-error');
+                    setTimeout(() => el.classList.remove('shake-error'), 600);
+                };
+
+                const reportError = (msg, item, el) => {
+                    expandAndFocus(item, el);
+                    marcarError(el);
+                    mostrarToastError(msg);
+                };
+
+                clearErrores();
+                let filasValidas = 0;
+                for (let item of filasItems) {
+                    const dominio = item.querySelector('.campo-dominio')?.value.trim() || '';
+                    const area = item.querySelector('.campo-area')?.value || '';
+
+                    if (area && !dominio) { reportError('Debe ingresar el dominio cuando selecciona un área de formación', item, item.querySelector('.campo-dominio')); return; }
+                    if (!dominio) continue; // validar solo filas con dominio
+                    if (!area) { reportError('Debe seleccionar un área de formación en cada dominio', item, item.querySelector('.campo-area')); return; }
+
+                    const competencias = item.querySelectorAll('.competencia-card');
+                    if (competencias.length === 0) { reportError('Cada dominio debe tener al menos una competencia', item, item.querySelector('button[onclick^="agregarCompetencia"]')); return; }
+
+                    for (let comp of competencias) {
+                        const codigo = comp.querySelector('.campo-comp-codigo')?.value.trim() || '';
+                        const desc = comp.querySelector('.campo-comp-desc')?.value.trim() || '';
+                        if (!codigo || !desc) { reportError('Todas las competencias deben tener código y descripción', item, !codigo ? comp.querySelector('.campo-comp-codigo') : comp.querySelector('.campo-comp-desc')); return; }
+
+                        const resultados = comp.querySelectorAll('.resultado-card');
+                        if (resultados.length === 0) { reportError('Cada competencia debe tener al menos un resultado de aprendizaje', item, comp.querySelector('button[onclick^="agregarResultado"]')); return; }
+                        for (let ra of resultados) {
+                            const raCodigo = ra.querySelector('.campo-ra-codigo')?.value.trim() || '';
+                            const raDesc = ra.querySelector('.campo-ra-desc')?.value.trim() || '';
+                            if (!raCodigo || !raDesc) { reportError('Todos los resultados de aprendizaje deben tener código y descripción', item, !raCodigo ? ra.querySelector('.campo-ra-codigo') : ra.querySelector('.campo-ra-desc')); return; }
+
+                            const criterios = ra.querySelectorAll('.criterio-card');
+                            if (criterios.length === 0) { reportError('Cada resultado de aprendizaje debe tener al menos un criterio de logro', item, ra.querySelector('button[onclick^="agregarCriterio"]')); return; }
+                            for (let cl of criterios) {
+                                const clCodigo = cl.querySelector('.campo-cl-codigo')?.value.trim() || '';
+                                const clDesc = cl.querySelector('.campo-cl-desc')?.value.trim() || '';
+                                if (!clCodigo || !clDesc) { reportError('Todos los criterios de logro deben tener código y descripción', item, !clCodigo ? cl.querySelector('.campo-cl-codigo') : cl.querySelector('.campo-cl-desc')); return; }
+                            }
                         }
-
-                        const competencias = item.querySelectorAll('.competencia-card');
-                        if (competencias.length === 0) {
-                            mostrarToastError('Cada dominio debe tener al menos una competencia');
-                            return;
-                        }
-
-                        let competenciasValidas = 0;
-                        for (let comp of competencias) {
-                            const codigo = comp.querySelector('.campo-comp-codigo')?.value.trim() || '';
-                            const desc = comp.querySelector('.campo-comp-desc')?.value.trim() || '';
-
-                            if (!codigo || !desc) {
-                                mostrarToastError('Todas las competencias deben tener código y descripción');
-                                return;
-                            }
-                            competenciasValidas++;
-                        }
-
-                        if (competenciasValidas > 0) filasValidas++;
                     }
+                    filasValidas++;
+                }
 
-                    if (filasValidas === 0) {
-                        mostrarToastError('Debe completar al menos un dominio con competencias');
-                        return;
+                if (filasValidas === 0) { mostrarToastError('Debe completar al menos un dominio con toda la jerarquía (Área, Dominio, Competencias, Resultados y Criterios)'); return; }
+
+                const formData = new FormData(form);
+                fetch(form.action || '', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(response => {
+                    if (!response.ok) return response.json().then(data => Promise.reject(data));
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        mostrarToastExito(data.message, 1700, data.redirect);
+                    } else {
+                        mostrarToastError(data.message);
                     }
-
-                    // Enviar por AJAX
-                    const formData = new FormData(form);
-                    fetch(form.action || '', {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        })
-                        .then(response => {
-                            if (!response.ok) {
-                                return response.json().then(data => Promise.reject(data));
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            if (data.success) {
-                                mostrarToastExito(data.message, 1500);
-                                setTimeout(() => {
-                                    window.location.href = data.redirect;
-                                }, 1500);
-                            } else {
-                                mostrarToastError(data.message);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            mostrarToastError(error.message || 'Error al guardar el perfil');
-                        });
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    mostrarToastError(error.message || 'Error al guardar el perfil');
                 });
-            }
+            });
         });
 
         // Mostrar toast si viene del éxito (fallback para navegación no-AJAX)
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
             if (params.has('success')) {
-                mostrarToastExito();
+                mostrarToastExito('Perfil de egreso creado correctamente');
             }
         });
     </script>

@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="card-body">
                         <?php
                         if (!empty($error)) echo mostrarMensaje($error, 'error');
-                        if (!empty($success)) echo mostrarMensaje($success, 'success');
+                        // Éxito se manejará vía SweetAlert2
                         ?>
                         
                         <form method="POST" action="">
@@ -109,5 +109,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <?php include '../../includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <?php if (!empty($success)): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Carrera creada',
+                    text: <?php echo json_encode($success); ?>,
+                    timer: 1800,
+                    showConfirmButton: false
+                });
+            }
+        });
+    </script>
+    <?php endif; ?>
 </body>
 </html>
