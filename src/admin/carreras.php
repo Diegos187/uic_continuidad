@@ -60,8 +60,8 @@ $carreras = $carrera->obtenerTodas();
                             <a href="perfiles_egreso.php?carrera_id=<?php echo $c['id']; ?>"
                                 class="btn btn-primary btn-sm">Perfil de Egreso</a>
                             <a href="eliminar_carrera.php?id=<?php echo $c['id']; ?>"
-                                class="btn btn-danger btn-sm"
-                                onclick="return confirm('¿Estás seguro? Se eliminarán también todas las asignaturas asociadas.')">
+                                class="btn btn-danger btn-sm btn-delete-carrera"
+                                data-url="eliminar_carrera.php?id=<?php echo $c['id']; ?>">
                                 Eliminar
                             </a>
                         </td>
@@ -72,6 +72,38 @@ $carreras = $carrera->obtenerTodas();
     </div>
     <?php include '../../includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const links = document.querySelectorAll('.btn-delete-carrera');
+            links.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const url = this.getAttribute('data-url') || this.getAttribute('href');
+                    if (!url) return;
+                    if (typeof Swal === 'undefined') {
+                        if (confirm('Al eliminar esta carrera se eliminarán también todas las asignaturas asociadas. ¿Desea continuar?')) {
+                            window.location.href = url;
+                        }
+                        return;
+                    }
+                    Swal.fire({
+                        title: 'Eliminar carrera',
+                        html: 'Esta acción <b>eliminará también todas las asignaturas</b> asociadas a esta carrera. Esta operación no se puede deshacer.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: 'Sí, eliminar',
+                        cancelButtonText: 'Cancelar'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = url;
+                        }
+                    });
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>
