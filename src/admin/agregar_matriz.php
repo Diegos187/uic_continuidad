@@ -46,6 +46,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif (empty($filasPost)) {
         $error = 'Debe agregar al menos una fila a la matriz.';
     } else {
+        // Validar unicidad del nombre de la matriz (por carrera)
+        try {
+            $sqlCheck = "SELECT COUNT(*) AS total FROM matrices WHERE nombre = :nombre AND carrera_id = :carrera_id";
+            $stmtCheck = $conexion->prepare($sqlCheck);
+            $stmtCheck->bindParam(':nombre', $nombre_matriz, PDO::PARAM_STR);
+            $stmtCheck->bindParam(':carrera_id', $carrera_id, PDO::PARAM_INT);
+            $stmtCheck->execute();
+            $rowCheck = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            if (($rowCheck['total'] ?? 0) > 0) {
+                $error = 'Ya existe una matriz con ese nombre en la carrera seleccionada.';
+            }
+        } catch (Exception $e) {
+            error_log('Error verificando unicidad de nombre de matriz: ' . $e->getMessage());
+        }
+
+        if (!empty($error)) {
+            // Saltar creación si el nombre no es único
+        } else {
         // PASO 1: Crear registro de matriz PRIMERO (sin version_id)
         $matriz_id_creada = $matrizGeneral->crear($carrera_id, null, $nombre_matriz, $nombre_matriz);
         if (!$matriz_id_creada) {
@@ -149,10 +167,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         'competencias_ids' => $competenciasSeleccionadas,
                         'resultados_ids' => $resultadosSeleccionados,
                         'criterios_ids' => $criteriosSeleccionados,
-                        'contenidos' => isset($fila['contenidos']) ? limpiarDatos($fila['contenidos']) : null,
-                        'bibliografia' => isset($fila['bibliografia']) ? limpiarDatos($fila['bibliografia']) : null,
-                        'metodologias' => isset($fila['metodologias']) ? limpiarDatos($fila['metodologias']) : null,
-                        'estrategias' => isset($fila['estrategias']) ? limpiarDatos($fila['estrategias']) : null,
+                        // Guardar texto plano UTF-8 para evitar entidades HTML en almacenamiento
+                        'contenidos' => isset($fila['contenidos']) ? (is_string($fila['contenidos']) ? trim($fila['contenidos']) : $fila['contenidos']) : null,
+                        'bibliografia' => isset($fila['bibliografia']) ? (is_string($fila['bibliografia']) ? trim($fila['bibliografia']) : $fila['bibliografia']) : null,
+                        'metodologias' => isset($fila['metodologias']) ? (is_string($fila['metodologias']) ? trim($fila['metodologias']) : $fila['metodologias']) : null,
+                        'estrategias' => isset($fila['estrategias']) ? (is_string($fila['estrategias']) ? trim($fila['estrategias']) : $fila['estrategias']) : null,
                         'sct_chile' => isset($fila['sct_chile']) ? (int)limpiarDatos($fila['sct_chile']) : 0,
                     ];
                 }
@@ -175,9 +194,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
+        }
+
     // Responder con JSON para AJAX
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=UTF-8');
         if (!empty($error)) {
             http_response_code(400);
             echo json_encode([
@@ -200,6 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <html lang="es">
 
 <head>
+    <meta charset="UTF-8">
     <title>Agregar Matriz de Coherencia - UTEM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -226,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <select class="form-select" id="carrera_id" name="carrera_id" required onchange="cargarAsignaturasYAnexos()">
                                         <option value="">Seleccione una carrera</option>
                                         <?php foreach ($carreras as $carr): ?>
-                                            <option value="<?php echo $carr['id']; ?>"><?php echo htmlspecialchars($carr['nombre']); ?></option>
+                                            <option value="<?php echo htmlspecialchars($carr['id'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($carr['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>

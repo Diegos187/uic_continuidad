@@ -49,6 +49,7 @@ if (!$datos_carrera) {
 <html lang="es">
 <head>
     <title>Editar Carrera - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -73,7 +74,7 @@ if (!$datos_carrera) {
                             <div class="mb-3">
                                 <label for="nombre" class="form-label">Nombre de la Carrera</label>
                                 <input type="text" class="form-control" id="nombre" name="nombre"
-                                    value="<?php echo htmlspecialchars($datos_carrera['nombre']); ?>" required>
+                                    value="<?php echo htmlspecialchars($datos_carrera['nombre'], ENT_QUOTES, 'UTF-8'); ?>" required autocomplete="off">
                             </div>
                             
                             <div class="mb-3">

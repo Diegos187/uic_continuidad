@@ -126,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                     error_log('Error obteniendo detalle de perfil: ' . $e->getMessage());
                 }
             }
+            // Mantener texto plano sin entidades para evitar mostrar &quot; y &#039; en vistas/exportaciones
             $competenciaAgregada = implode("\n", $competenciasTexto);
             $resultadosAgregados = implode("\n", $resultadosTexto);
             $criteriosAgregados = implode("\n", $criteriosTexto);
@@ -144,10 +145,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 'competencias_ids' => $competenciasSeleccionadas,
                 'resultados_ids' => $resultadosSeleccionados,
                 'criterios_ids' => $criteriosSeleccionados,
-                'contenidos' => isset($fila['contenidos']) ? limpiarDatos($fila['contenidos']) : null,
-                'bibliografia' => isset($fila['bibliografia']) ? limpiarDatos($fila['bibliografia']) : null,
-                'metodologias' => isset($fila['metodologias']) ? limpiarDatos($fila['metodologias']) : null,
-                'estrategias' => isset($fila['estrategias']) ? limpiarDatos($fila['estrategias']) : null,
+                'contenidos' => isset($fila['contenidos']) ? (is_string($fila['contenidos']) ? trim($fila['contenidos']) : $fila['contenidos']) : null,
+                'bibliografia' => isset($fila['bibliografia']) ? (is_string($fila['bibliografia']) ? trim($fila['bibliografia']) : $fila['bibliografia']) : null,
+                'metodologias' => isset($fila['metodologias']) ? (is_string($fila['metodologias']) ? trim($fila['metodologias']) : $fila['metodologias']) : null,
+                'estrategias' => isset($fila['estrategias']) ? (is_string($fila['estrategias']) ? trim($fila['estrategias']) : $fila['estrategias']) : null,
                 'sct_chile' => isset($fila['sct_chile']) ? (int)limpiarDatos($fila['sct_chile']) : 0,
             ];
         }
@@ -296,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
 
                         <?php if ($matrizActual): ?>
                             <div class="alert alert-info mb-3">
-                                <strong>Matriz actual:</strong> <?php echo htmlspecialchars($matrizActual['nombre']); ?>
+                                <strong>Matriz actual:</strong> <?php echo htmlspecialchars($matrizActual['nombre'], ENT_QUOTES, 'UTF-8'); ?>
                             </div>
 
                             <form method="POST" action="" class="needs-validation" novalidate>

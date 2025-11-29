@@ -31,6 +31,7 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
 
 <head>
     <title>Matrices de Coherencia - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .version-card {
@@ -106,8 +107,8 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                         <select name="carrera_id" class="form-select" required>
                             <option value="">Seleccione una carrera</option>
                             <?php foreach ($carreras as $carr): ?>
-                                <option value="<?php echo $carr['id']; ?>" <?php echo (isset($_GET['carrera_id']) && $_GET['carrera_id'] == $carr['id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($carr['nombre']); ?>
+                                <option value="<?php echo htmlspecialchars($carr['id'], ENT_QUOTES, 'UTF-8'); ?>" <?php echo (isset($_GET['carrera_id']) && $_GET['carrera_id'] == $carr['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($carr['nombre'], ENT_QUOTES, 'UTF-8'); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -125,11 +126,11 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                     <div class="card-body">
                         <div class="row">
                             <div class="col">
-                                <h5 class="card-title">Matriz: <?php echo htmlspecialchars($m['nombre'] ?: ('Matriz #' . (int)$m['id'])); ?></h5>
+                                <h5 class="card-title">Matriz: <?php echo htmlspecialchars($m['nombre'] ?: ('Matriz #' . (int)$m['id']), ENT_QUOTES, 'UTF-8'); ?></h5>
                                 <h6 class="card-subtitle mb-2 text-muted">
-                                    Versión actual: <?php echo htmlspecialchars($m['version_descripcion'] ?: ('Versión ' . (int)($m['version_numero'] ?? 'N/A'))); ?>
+                                    Versión actual: <?php echo htmlspecialchars($m['version_descripcion'] ?: ('Versión ' . (int)($m['version_numero'] ?? 'N/A')), ENT_QUOTES, 'UTF-8'); ?>
                                 </h6>
-                                <h6 class="card-subtitle mb-2 text-muted">Creada: <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($m['fecha_creacion']))); ?></h6>
+                                <h6 class="card-subtitle mb-2 text-muted">Creada: <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($m['fecha_creacion'])), ENT_QUOTES, 'UTF-8'); ?></h6>
                                 <?php
                                 $filasVersionActual = $matriz->contarFilasPorVersion((int)$m['id'], (int)($m['version_id'] ?? 0));
                                 ?>
@@ -192,14 +193,16 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                             <div class="version-card<?php echo $esActual ? ' border-primary' : ''; ?>" <?php echo $esActual ? 'style="border: 2px solid #0d6efd; background-color: #f0f6ff;"' : ''; ?>>
                                                 <div class="mb-3">
                                                     <h6 class="mb-1">
-                                                        <?php echo htmlspecialchars($v['descripcion'] ?: ('Versión ' . (int)$v['numero_version'])); ?>
+                                                        <?php echo htmlspecialchars($v['descripcion'] ?: ('Versión ' . (int)$v['numero_version']), ENT_QUOTES, 'UTF-8'); ?>
                                                         <?php if ($esActual): ?>
                                                             <span class="badge bg-success">actual</span>
                                                         <?php endif; ?>
                                                     </h6>
                                                     <p class="mb-0 text-muted">
-                                                        Fecha de creación: <?php echo htmlspecialchars(date('d/m/Y', strtotime($v['fecha_creacion']))); ?>
+                                                        Fecha de creación: <?php echo htmlspecialchars(date('d/m/Y', strtotime($v['fecha_creacion'])), ENT_QUOTES, 'UTF-8'); ?>
                                                     </p>
+                                                    <?php $filasDeVersion = $matriz->contarFilasPorVersion((int)$m['id'], (int)$v['id']); ?>
+                                                    <span class="badge text-bg-secondary">Filas: <?php echo (int)$filasDeVersion; ?></span>
                                                 </div>
                                                 <div class="d-flex gap-2 justify-content-end">
                                                     <a href="previsualizar_matriz.php?id=<?php echo (int)$m['id']; ?>&version_id=<?php echo (int)$v['id']; ?>" class="btn btn-sm btn-info" title="Previsualizar versión">Previsualizar</a>

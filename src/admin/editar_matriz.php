@@ -126,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // PASO 1: Actualizar nombre y descripción de la matriz
             $sql = "UPDATE matrices SET nombre = :nombre, descripcion = :descripcion WHERE id = :id";
             $stmt = $conexion->prepare($sql);
+            // Evitar guardar entidades HTML; almacenar texto plano UTF-8
             $stmt->bindParam(':nombre', $nombre_matriz);
             $stmt->bindParam(':descripcion', $descripcion_version);
             $stmt->bindParam(':id', $matriz_id, PDO::PARAM_INT);
@@ -277,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // Responder con JSON para AJAX
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=UTF-8');
         if (!empty($error)) {
             http_response_code(400);
             echo json_encode([
@@ -301,6 +302,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <head>
     <title>Editar Matriz de Coherencia - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
@@ -326,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         <option value="">Seleccione una carrera</option>
                                         <?php foreach ($carreras as $carr): ?>
                                             <option value="<?php echo $carr['id']; ?>" <?php echo $carr['id'] == $matrizInfo['carrera_id'] ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($carr['nombre']); ?>
+                                                <?php echo htmlspecialchars($carr['nombre'], ENT_QUOTES, 'UTF-8'); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -341,9 +343,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                             <div class="mb-3">
                                 <label for="nombre_matriz" class="form-label">Nombre de la Matriz</label>
-                                <input type="text" class="form-control mb-3" id="nombre_matriz" name="nombre_matriz" placeholder="Ej: Matriz de Coherencia Curricular 2026" value="<?php echo htmlspecialchars($matrizInfo['nombre'] ?? ''); ?>" required />
+                                <input type="text" class="form-control mb-3" id="nombre_matriz" name="nombre_matriz" placeholder="Ej: Matriz de Coherencia Curricular 2026" value="<?php echo htmlspecialchars($matrizInfo['nombre'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" required />
                                 <label for="descripcion_version" class="form-label">Nombre/Descripción de la Versión</label>
-                                <input type="text" class="form-control mb-3" id="descripcion_version" name="descripcion_version" placeholder="Ej: v1.0 - Plan Diurno / Versión inicial aprobada" value="<?php echo htmlspecialchars($versionActual['descripcion'] ?? ''); ?>" required />
+                                <input type="text" class="form-control mb-3" id="descripcion_version" name="descripcion_version" placeholder="Ej: v1.0 - Plan Diurno / Versión inicial aprobada" value="<?php echo htmlspecialchars($versionActual['descripcion'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" required />
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <h5 class="m-0">Filas de la Matriz</h5>
                                     <button type="button" class="btn btn-sm btn-primary" onclick="agregarFila()">Agregar otra fila</button>

@@ -14,6 +14,7 @@ $usuarios = $usuario->obtenerTodos();
 <html lang="es">
 <head>
     <title>Usuarios - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -44,8 +45,8 @@ $usuarios = $usuario->obtenerTodos();
                 <?php foreach ($usuarios as $u): ?>
                 <tr>
                     <td><?php echo $u['id']; ?></td>
-                    <td><?php echo htmlspecialchars($u['nombre']); ?></td>
-                    <td><?php echo htmlspecialchars($u['email']); ?></td>
+                    <td><?php echo htmlspecialchars($u['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+                    <td><?php echo htmlspecialchars($u['email'], ENT_QUOTES, 'UTF-8'); ?></td>
                     <td><?php echo $u['role'] == 1 ? 'Administrador' : 'Usuario'; ?></td>
                     <td>
                         <?php if ($_SESSION['usuario_id'] != $u['id']): ?>

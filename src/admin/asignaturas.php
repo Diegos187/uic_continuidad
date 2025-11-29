@@ -17,6 +17,7 @@ $asignaturas = $asignatura->obtenerTodas();
 
 <head>
     <title>Actividades Curriculares - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
@@ -50,8 +51,8 @@ $asignaturas = $asignatura->obtenerTodas();
                 <?php foreach ($asignaturas as $a): ?>
                     <tr>
                         <td><?php echo $a['id']; ?></td>
-                        <td><?php echo htmlspecialchars($a['nombre']); ?></td>
-                        <td><?php echo htmlspecialchars($a['nombre_carrera']); ?></td>
+                        <td><?php echo htmlspecialchars($a['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td><?php echo htmlspecialchars($a['nombre_carrera'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td><?php echo $a['semestre']; ?></td>
                         <td><?php echo $a['duracion_semanas']; ?> semanas</td>
                         <td>

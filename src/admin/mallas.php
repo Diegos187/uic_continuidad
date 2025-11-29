@@ -18,6 +18,7 @@ $carreras = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <html lang="es">
 <head>
     <title>Mallas Curriculares - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -41,11 +42,11 @@ $carreras = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="card-body">
                         <div class="row">
                             <div class="col">
-                                <h5 class="card-title"><?php echo htmlspecialchars($carrera['nombre']); ?></h5>
+                                <h5 class="card-title"><?php echo htmlspecialchars($carrera['nombre'], ENT_QUOTES, 'UTF-8'); ?></h5>
                                 <h6 class="card-subtitle mb-2 text-muted">
-                                    Jornada: <?php echo htmlspecialchars($carrera['jornada']); ?> | 
-                                    Duración: <?php echo htmlspecialchars($carrera['duracion_semestres']); ?> semestres |
-                                    Año: <?php echo htmlspecialchars($carrera['anio']); ?>
+                                    Jornada: <?php echo htmlspecialchars($carrera['jornada'], ENT_QUOTES, 'UTF-8'); ?> | 
+                                    Duración: <?php echo htmlspecialchars($carrera['duracion_semestres'], ENT_QUOTES, 'UTF-8'); ?> semestres |
+                                    Año: <?php echo htmlspecialchars($carrera['anio'], ENT_QUOTES, 'UTF-8'); ?>
                                 </h6>
                             </div>
                             <div class="col-auto">

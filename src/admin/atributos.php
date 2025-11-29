@@ -15,6 +15,7 @@ $atributos = $atributo->obtenerTodos();
 
 <head>
     <title>Atributos - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
@@ -47,8 +48,8 @@ $atributos = $atributo->obtenerTodos();
                     <tr>
                         <td><?php echo $a['id']; ?></td>
                         <td><?php echo $a['tipo']; ?></td>
-                        <td><?php echo htmlspecialchars($a['descripcion']); ?></td>
-                        <td><?php echo htmlspecialchars($a['nombre_asignatura']); ?></td>
+                        <td><?php echo htmlspecialchars($a['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td><?php echo htmlspecialchars($a['nombre_asignatura'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td>
                             <a href="editar_atributo.php?id=<?php echo $a['id']; ?>"
                                 class="btn btn-warning btn-sm">Editar</a>

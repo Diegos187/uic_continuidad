@@ -78,9 +78,9 @@ $archivos = $archivo->obtenerTodos();
                         <tbody>
                             <?php foreach ($archivos as $a): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($a['nombre']); ?></td>
-                                    <td><?php echo htmlspecialchars($a['descripcion']); ?></td>
-                                    <td><?php echo htmlspecialchars($a['usuario_nombre']); ?></td>
+                                    <td><?php echo htmlspecialchars($a['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($a['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($a['usuario_nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo date('d/m/Y H:i', strtotime($a['created_at'])); ?></td>
                                     <td>
                                         <a href="ver_archivo.php?id=<?php echo $a['id']; ?>" 

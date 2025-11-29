@@ -17,6 +17,7 @@ $carreras = $carrera->obtenerTodas();
 
 <head>
     <title>Carreras - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
@@ -50,7 +51,7 @@ $carreras = $carrera->obtenerTodas();
                 <?php foreach ($carreras as $c): ?>
                     <tr>
                         <td><?php echo $c['id']; ?></td>
-                        <td><?php echo htmlspecialchars($c['nombre']); ?></td>
+                        <td><?php echo htmlspecialchars($c['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td><?php echo $c['jornada']; ?></td>
                         <td><?php echo $c['duracion_semestres']; ?> semestres</td>
                         <td><?php echo $c['anio']; ?></td>

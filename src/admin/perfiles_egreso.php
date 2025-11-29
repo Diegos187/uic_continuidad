@@ -32,7 +32,7 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
 <head>
     <title>Perfil de Egreso - UTEM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         .descripcion-cell {
@@ -48,7 +48,7 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
         <div class="container-fluid mb-4">
             <div class="row align-items-center">
                 <div class="col">
-                    <h1>Perfil de egreso <strong><?php echo htmlspecialchars($carrera['nombre']); ?></strong></h1>
+                    <h1>Perfil de egreso <strong><?php echo htmlspecialchars($carrera['nombre'], ENT_QUOTES, 'UTF-8'); ?></strong></h1>
                 </div>
                 <div class="col-auto">
                     <a href="carreras.php" class="btn btn-secondary me-2">Volver</a>
@@ -75,8 +75,8 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
                             <?php foreach ($perfiles as $p): ?>
                                 <tr>
                                     <td><?php echo (int)$p['id']; ?></td>
-                                    <td class="descripcion-cell"><?php echo nl2br(htmlspecialchars($p['descripcion'])); ?></td>
-                                    <td><?php echo htmlspecialchars($p['created_at']); ?></td>
+                                    <td class="descripcion-cell"><?php echo nl2br(htmlspecialchars($p['descripcion'], ENT_QUOTES, 'UTF-8')); ?></td>
+                                    <td><?php echo htmlspecialchars($p['created_at'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td>
                                         <a href="editar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>" class="btn btn-sm btn-warning">Editar</a>
                                         <a href="eliminar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>" class="btn btn-sm btn-danger btn-delete-perfil" data-url="eliminar_perfil_egreso.php?id=<?php echo (int)$p['id']; ?>&carrera_id=<?php echo $carreraId; ?>">Eliminar</a>

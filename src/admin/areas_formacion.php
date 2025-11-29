@@ -17,7 +17,7 @@ $areas = $areaModel->obtenerTodas();
 <head>
     <title>Áreas de formación - UTEM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <meta charset="utf-8" />
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         .descripcion-col {
@@ -54,7 +54,7 @@ $areas = $areaModel->obtenerTodas();
                 <?php foreach ($areas as $a): ?>
                     <tr>
                         <td><?php echo $a['id']; ?></td>
-                        <td><?php echo htmlspecialchars($a['nombre']); ?></td>
+                        <td><?php echo htmlspecialchars($a['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td><?php echo nl2br(htmlspecialchars($a['descripcion'] ?? '')); ?></td>
                         <td>
                             <a class="btn btn-warning btn-sm" href="editar_area_formacion.php?id=<?php echo $a['id']; ?>">Editar</a>

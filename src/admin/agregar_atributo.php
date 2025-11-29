@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <html lang="es">
 <head>
     <title>Agregar Atributo - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -54,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <select name="carrera_id" class="form-control" required>
                     <option value="">Seleccionar carrera a asociar</option>
                     <?php foreach ($carreras as $a): ?>
-                    <option value="<?php echo $a['id']; ?>"><?php echo $a['nombre']; ?></option>
+                    <option value="<?php echo htmlspecialchars($a['id'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($a['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>

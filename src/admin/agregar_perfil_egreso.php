@@ -256,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="es">
 
 <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Agregar Perfil de Egreso - UTEM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -271,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="col-md-10">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h2>Nuevo Perfil de egreso <strong><?php echo htmlspecialchars($carrera['nombre']); ?></strong></h2>
+                        <h2>Nuevo Perfil de egreso <strong><?php echo htmlspecialchars($carrera['nombre'], ENT_QUOTES, 'UTF-8'); ?></strong></h2>
                         <a class="btn btn-secondary" href="perfiles_egreso.php?carrera_id=<?php echo $carreraId; ?>">Volver</a>
                     </div>
                     <div class="card-body">
@@ -283,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <form method="POST" action="">
                             <div class="mb-3">
                                 <label class="form-label">Nombre del perfil de egreso</label>
-                                <input type="text" class="form-control" name="nombre_perfil" required />
+                                <input type="text" class="form-control" name="nombre_perfil" required autocomplete="off" />
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-2">

@@ -34,6 +34,7 @@ if (!$user || $user['id'] == $_SESSION['usuario_id']) {
 <html lang="es">
 <head>
     <title>Editar Usuario - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -48,12 +49,12 @@ if (!$user || $user['id'] == $_SESSION['usuario_id']) {
             <div class="mb-3">
                 <label class="form-label">Nombre</label>
                 <input type="text" name="nombre" class="form-control" 
-                       value="<?php echo htmlspecialchars($user['nombre']); ?>" required>
+                       value="<?php echo htmlspecialchars($user['nombre'], ENT_QUOTES, 'UTF-8'); ?>" required autocomplete="off">
             </div>
             <div class="mb-3">
                 <label class="form-label">Email</label>
                 <input type="email" name="email" class="form-control" 
-                       value="<?php echo htmlspecialchars($user['email']); ?>" required>
+                       value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>" required autocomplete="off">
             </div>
             <div class="mb-3">
                 <label class="form-label">Rol</label>

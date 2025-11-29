@@ -53,6 +53,7 @@ if (!$datos_asignatura) {
 <html lang="es">
 <head>
     <title>Editar Actividad Curricular - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -77,7 +78,7 @@ if (!$datos_asignatura) {
                             <div class="mb-3">
                                 <label for="nombre" class="form-label">Nombre de la Asignatura</label>
                                 <input type="text" class="form-control" id="nombre" name="nombre"
-                                    value="<?php echo htmlspecialchars($datos_asignatura['nombre']); ?>" required>
+                                    value="<?php echo htmlspecialchars($datos_asignatura['nombre'], ENT_QUOTES, 'UTF-8'); ?>" required autocomplete="off">
                             </div>
                             
                             <div class="mb-3">
@@ -87,8 +88,8 @@ if (!$datos_asignatura) {
                                     <?php foreach ($carreras as $c): ?>
                                         <option value="<?php echo $c['id']; ?>"
                                             <?php echo ($datos_asignatura['carrera_id'] == $c['id']) ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($c['nombre']); ?> - 
-                                            <?php echo $c['jornada']; ?>
+                                            <?php echo htmlspecialchars($c['nombre'], ENT_QUOTES, 'UTF-8'); ?> - 
+                                            <?php echo htmlspecialchars($c['jornada'], ENT_QUOTES, 'UTF-8'); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>

@@ -31,6 +31,7 @@ $carreras = $atributo->obtenerCarreras();
 <html lang="es">
 <head>
     <title>Editar Atributo - UTEM</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -41,7 +42,7 @@ $carreras = $atributo->obtenerCarreras();
             <a href="atributos.php" class="btn btn-secondary">Volver</a>
         </div>
         <form method="POST" class="mt-4">
-            <input type="hidden" name="id" value="<?php echo $attr['id']; ?>">
+            <input type="hidden" name="id" value="<?php echo htmlspecialchars($attr['id'], ENT_QUOTES, 'UTF-8'); ?>">
             <div class="mb-3">
                 <label class="form-label">Tipo</label>
                 <select name="tipo" class="form-control" required>
@@ -52,7 +53,7 @@ $carreras = $atributo->obtenerCarreras();
             </div>
             <div class="mb-3">
                 <label class="form-label">Descripción</label>
-                <textarea name="descripcion" class="form-control" required><?php echo htmlspecialchars($attr['descripcion']); ?></textarea>
+                <textarea name="descripcion" class="form-control" required><?php echo htmlspecialchars($attr['descripcion'], ENT_QUOTES, 'UTF-8'); ?></textarea>
             </div>
             <div class="mb-3">
                 <label class="form-label">Carrera</label>
@@ -60,7 +61,7 @@ $carreras = $atributo->obtenerCarreras();
                     <option value="">Seleccionar carrera</option>
                     <?php foreach ($carreras as $c): ?>
                     <option value="<?php echo $c['id']; ?>" <?php echo $attr['carrera_id'] == $c['id'] ? 'selected' : ''; ?>>
-                        <?php echo $c['nombre']; ?>
+                        <?php echo htmlspecialchars($c['nombre'], ENT_QUOTES, 'UTF-8'); ?>
                     </option>
                     <?php endforeach; ?>
                 </select>
