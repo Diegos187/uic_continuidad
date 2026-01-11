@@ -81,7 +81,7 @@ class MatrizCoherencia
             if ($stmt->execute()) {
                 $id_coherencia = $this->conexion->lastInsertId();
 
-                // Insertar criterios seleccionados en matriz_tributacion (estructura real: matriz_coherencia_id, criterio_logro_id, marcado)
+                // Insertar criterios seleccionados en matriz_tributacion
                 $criteriosIds = isset($datos['criterios_ids']) && is_array($datos['criterios_ids']) ? $datos['criterios_ids'] : [];
                 if (!empty($criteriosIds)) {
                     $queryTrib = "INSERT INTO matriz_tributacion (matriz_coherencia_id, criterio_logro_id, marcado)

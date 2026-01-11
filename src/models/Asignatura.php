@@ -1,5 +1,4 @@
 <?php
-// Asignatura.php
 class Asignatura {
     private $conexion;
     private $tabla = 'asignaturas';

@@ -1,5 +1,4 @@
 <?php
-// Carrera.php
 class Carrera {
     private $conexion;
     private $tabla = 'carreras';
