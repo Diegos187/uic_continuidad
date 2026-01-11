@@ -1,11 +1,9 @@
 <?php
-// agregar_carrera.php
 session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../includes/functions.php';
 
-// Verificar si el usuario está autenticado
 verificarSesion();
 
 $error = '';
@@ -33,7 +31,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $resultado = $carrera->crear($datos);
     if ($resultado) {
         $success = "Carrera creada exitosamente.";
-        // Limpiar datos del formulario
         $nombre = $jornada = '';
         $duracion_semestres = 0;
     } else {
@@ -64,7 +61,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="card-body">
                         <?php
                         if (!empty($error)) echo mostrarMensaje($error, 'error');
-                        // Éxito se manejará vía SweetAlert2
                         ?>
                         
                         <form method="POST" action="">

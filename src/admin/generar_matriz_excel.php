@@ -75,15 +75,15 @@ $sheet->getStyle('A2:K2')->applyFromArray([
 $columnWidths = [
     'A' => 20,  // Área de formación
     'B' => 35,  // Dominio
-    'C' => 35,  // Competencia
+    'C' => 50,  // Competencia
     'D' => 60,  // Resultados de aprendizaje
     'E' => 60,  // Criterios de logro
     'F' => 60,  // Contenidos/Saberes
     'G' => 20,  // Actividad curricular
     'H' => 12,  // SCT-Chile
-    'I' => 35,  // Metodologías activas
-    'J' => 25,  // Estrategias de evaluación
-    'K' => 25,  // Bibliografía
+    'I' => 50,  // Metodologías activas
+    'J' => 30,  // Estrategias de evaluación
+    'K' => 30,  // Bibliografía
 ];
 
 foreach ($columnWidths as $col => $width) {
@@ -108,8 +108,7 @@ $sheet->setCellValue('K2', 'BIBLIOGRAFÍA');
 $fila = 3;
 foreach ($filasMatriz as $ma) {
     $mcid = (int)($ma['id'] ?? 0);
-    // Estructura jerárquica: Dominio → Competencia → Resultado → Criterio
-    $domainTree = []; // dominio_id => ['nombre'=>..., 'competencias'=>[comp_id=>{codigo,descripcion,resultados}]]
+    $domainTree = [];
 
     if ($mcid > 0) {
         $sqlDetalle = "SELECT ped.id AS dominio_id, ped.dominio AS dominio_nombre,
@@ -135,7 +134,6 @@ foreach ($filasMatriz as $ma) {
                         'competencias' => []
                     ];
                 }
-                // Parse códigos como "C1 - desc", "RA1 - desc", "CL1 - desc"
                 $compCode = $rd['comp_codigo'];
                 $compDesc = $rd['comp_desc'];
                 $raCode = $rd['ra_codigo'];
@@ -143,7 +141,7 @@ foreach ($filasMatriz as $ma) {
                 $clCode = $rd['cl_codigo'];
                 $clDesc = $rd['cl_desc'];
 
-                $compKey = $compCode; // usar código como clave estable
+                $compKey = $compCode; 
                 if (!isset($domainTree[$dId]['competencias'][$compKey])) {
                     $domainTree[$dId]['competencias'][$compKey] = [
                         'codigo' => $compCode,
@@ -244,7 +242,6 @@ foreach ($filasMatriz as $ma) {
                 ]);
                 $sheet->getRowDimension($fila)->setRowHeight(-1);
 
-                // Rich text bold para códigos en C,D,E
                 foreach (['C'=>$comp['codigo'] . ($comp['descripcion'] !== '' ? (' - ' . $comp['descripcion']) : ''),
                           'D'=>$ra['codigo'] . ($ra['descripcion'] !== '' ? (' - ' . $ra['descripcion']) : ''),
                           'E'=>$critRaw] as $col=>$raw) {
@@ -301,13 +298,10 @@ foreach ($filasMatriz as $ma) {
             }
         }
     }
-    // Las fusiones por dominio ya se manejan en el bucle anterior
 }
 
 $writer = new Xlsx($spreadSheet);
 
-// Proteger acceso cuando no exista la carrera (fetch puede devolver false)
-// Nombre de archivo usando nombre de carrera y de la matriz
 $carreraNombre = (is_array($matrizInfo) && isset($matrizInfo['carrera_nombre']) && $matrizInfo['carrera_nombre'] !== '')
     ? $matrizInfo['carrera_nombre']
     : ('Carrera_' . (int)$matrizInfo['carrera_id']);

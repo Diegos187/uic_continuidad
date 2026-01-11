@@ -1,12 +1,10 @@
 <?php
-// agregar_asignatura.php
 session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/Asignatura.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../includes/functions.php';
 
-// Verificar si el usuario está autenticado
 verificarSesion();
 
 $error = '';
@@ -16,7 +14,6 @@ $carrera_id = 0;
 $semestre = 0;
 $duracion_semanas = 0;
 
-// Obtener lista de carreras para el select
 $db = new Database();
 $carreraModel = new Carrera($db->conectar());
 $carreras = $carreraModel->obtenerTodas();
@@ -39,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $resultado = $asignatura->crear($datos);
     if ($resultado) {
         $success = "Actividad curricular creada exitosamente.";
-        // Limpiar datos del formulario
         $nombre = '';
         $carrera_id = 0;
         $semestre = 0;

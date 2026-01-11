@@ -27,7 +27,6 @@ $criterioModel = new CriterioLogroRef($conexion);
 $error = '';
 $success = '';
 
-// Obtener listas base
 $carreras = $carrera->obtenerTodas();
 $asignaturasTodas = $asignatura->obtenerTodas();
 
@@ -46,7 +45,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif (empty($filasPost)) {
         $error = 'Debe agregar al menos una fila a la matriz.';
     } else {
-        // Validar unicidad del nombre de la matriz (por carrera)
         try {
             $sqlCheck = "SELECT COUNT(*) AS total FROM matrices WHERE nombre = :nombre AND carrera_id = :carrera_id";
             $stmtCheck = $conexion->prepare($sqlCheck);
@@ -64,17 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!empty($error)) {
             // Saltar creación si el nombre no es único
         } else {
-        // PASO 1: Crear registro de matriz PRIMERO (sin version_id)
         $matriz_id_creada = $matrizGeneral->crear($carrera_id, null, $nombre_matriz, $nombre_matriz);
         if (!$matriz_id_creada) {
             $error = 'No se pudo crear el registro de matriz.';
         } else {
-            // PASO 2: Crear versión DESPUÉS (vinculada a la matriz que acabamos de crear)
             $version_id = $versiones->crear($matriz_id_creada, $carrera_id, $nombre_version);
             if (!$version_id) {
                 $error = 'No se pudo crear la versión de la matriz.';
             } else {
-                // PASO 3: Actualizar la matriz con el version_id
                 try {
                     $sql = "UPDATE matrices SET version_id = :version_id WHERE id = :matriz_id";
                     $stmt = $conexion->prepare($sql);
@@ -85,15 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     error_log('Error actualizando version_id en matriz: ' . $e->getMessage());
                 }
 
-                // PASO 4: Procesar filas
                 $filas = [];
                 foreach ($filasPost as $fila) {
-                    // Obtener y limpiar valores
                     $valores = array_map(function ($v) {
                         return is_string($v) ? trim($v) : $v;
                     }, $fila);
 
-                    // Validar que al menos haya contenido
                     $todosVacios = true;
                     foreach (['dominio', 'competencia', 'resultado_aprendizaje', 'actividad_curricular_id', 'criterios_logro', 'contenidos', 'bibliografia', 'metodologias', 'estrategias', 'sct_chile'] as $k) {
                         if (!empty($valores[$k])) {
@@ -102,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         }
                     }
                     if ($todosVacios) {
-                        continue; // Saltar filas vacías
+                        continue;
                     }
 
                     // Validar campos obligatorios cuando la fila tiene contenido
@@ -110,7 +102,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $dominio = isset($fila['dominio']) ? trim(limpiarDatos($fila['dominio'])) : '';
                     $competencia = isset($fila['competencia']) ? trim(limpiarDatos($fila['competencia'])) : '';
                     $resultado = isset($fila['resultado_aprendizaje']) ? trim(limpiarDatos($fila['resultado_aprendizaje'])) : '';
-                    // Si la fila tiene contenido, validar que todos los campos obligatorios estén llenos
                     if (!$todosVacios) {
                         if (!$actividad_id) {
                             $error = 'Debe seleccionar una Actividad Curricular en todas las filas.';
@@ -118,15 +109,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         }
                     }
 
-                    // Tomar perfil de egreso del nivel superior (si viene)
                     $perfil_superior = isset($_POST['perfil_id']) ? (int)limpiarDatos($_POST['perfil_id']) : null;
 
-                    // Procesar competencias seleccionadas
                     $competenciasSeleccionadas = isset($fila['competencias_ids']) ? (is_array($fila['competencias_ids']) ? array_map('intval', $fila['competencias_ids']) : [ (int)$fila['competencias_ids'] ]) : [];
                     $resultadosSeleccionados = isset($fila['resultados_ids']) ? (is_array($fila['resultados_ids']) ? array_map('intval', $fila['resultados_ids']) : [ (int)$fila['resultados_ids'] ]) : [];
                     $criteriosSeleccionados = isset($fila['criterios_ids']) ? (is_array($fila['criterios_ids']) ? array_map('intval', $fila['criterios_ids']) : [ (int)$fila['criterios_ids'] ]) : [];
 
-                    // Construir textos agregados para competencia / resultados / criterios
                     $competenciasTexto = [];
                     foreach ($competenciasSeleccionadas as $cid) {
                         $cdata = $competenciaModel->obtenerPorId($cid);
@@ -160,14 +148,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         'perfil_egreso_detalle_id' => isset($fila['perfil_egreso_detalle_id']) ? (int)limpiarDatos($fila['perfil_egreso_detalle_id']) : null,
                         'version_id' => $version_id,
                         'dominio' => $dominio,
-                        // Reemplazar campo competencia simple por listado agregado
                         'competencia' => $competenciaAgregada,
                         'resultado_aprendizaje' => $resultadosAgregados,
                         'criterios_logro' => $criteriosAgregados,
                         'competencias_ids' => $competenciasSeleccionadas,
                         'resultados_ids' => $resultadosSeleccionados,
                         'criterios_ids' => $criteriosSeleccionados,
-                        // Guardar texto plano UTF-8 para evitar entidades HTML en almacenamiento
+
                         'contenidos' => isset($fila['contenidos']) ? (is_string($fila['contenidos']) ? trim($fila['contenidos']) : $fila['contenidos']) : null,
                         'bibliografia' => isset($fila['bibliografia']) ? (is_string($fila['bibliografia']) ? trim($fila['bibliografia']) : $fila['bibliografia']) : null,
                         'metodologias' => isset($fila['metodologias']) ? (is_string($fila['metodologias']) ? trim($fila['metodologias']) : $fila['metodologias']) : null,
@@ -179,7 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if (empty($filas) && empty($error)) {
                     $error = 'No hay filas válidas para guardar.';
                 } elseif (!empty($filas) && empty($error)) {
-                    // Insertar por fila
                     $ids = [];
                     foreach ($filas as $f) {
                         $id = $matriz->crear($f);
@@ -196,7 +182,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         }
 
-    // Responder con JSON para AJAX
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         header('Content-Type: application/json; charset=UTF-8');
         if (!empty($error)) {
@@ -276,10 +261,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <div class="accordion" id="filas-container">
-                                <!-- Las filas dinámicas se insertan aquí por JS -->
                             </div>
 
-                            <!-- Botón adicional al final para agregar más filas -->
                             <div class="d-flex justify-content-end mt-3">
                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar otra fila</button>
                             </div>
@@ -296,7 +279,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <?php include '../../includes/footer.php'; ?>
 
-    <!-- Toast container -->
     <div id="toast-container" class="toast-container" style="display:none"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -425,11 +407,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             habilitarSelectsFila(node);
             actualizarResumenFila(node);
 
-            // Colapsar otras y expandir nueva
             cont.querySelectorAll('.accordion-collapse').forEach(c => c.classList.remove('show'));
             node.querySelector('.accordion-collapse').classList.add('show');
 
-            // Scroll suave al header de la nueva fila
             if (doScroll) {
                 const headerBtn = node.querySelector('.accordion-button');
                 if (headerBtn) {
@@ -464,7 +444,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             const ra = item.querySelector('.campo-resultado')?.value || '';
             const resumen = item.querySelector('.resumen-fila');
 
-            // Truncar cada parte a 40 caracteres máximo
             const truncar = (texto, max = 40) => {
                 if (!texto) return '';
                 return texto.length > max ? texto.substring(0, max) + '…' : texto;
@@ -475,15 +454,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         function habilitarSelectsFila(item) {
-            // Habilitar actividades curriculares si hay carrera seleccionada
             const carreraId = document.getElementById('carrera_id').value;
             const selActividad = item.querySelector('.campo-actividad');
             if (selActividad) {
-                const valorActual = selActividad.value; // Preservar valor actual
+                const valorActual = selActividad.value; 
                 if (carreraId && atributosCache.asignaturas.length) {
                     selActividad.innerHTML = optionAsignaturas(atributosCache.asignaturas, 'Seleccione una actividad curricular');
                     if (valorActual) {
-                        selActividad.value = valorActual; // Restaurar valor
+                        selActividad.value = valorActual; 
                     }
                     selActividad.disabled = false;
                 } else {
@@ -491,15 +469,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     selActividad.disabled = true;
                 }
             }
-            // Habilitar áreas si ya se seleccionó un perfil
+            // Habilitar áreas si se seleccionó un perfil
             const perfilId = document.getElementById('perfil_id').value;
             const selArea = item.querySelector('.campo-area');
             if (selArea) {
-                const valorActualArea = selArea.value; // Preservar valor actual
+                const valorActualArea = selArea.value; 
                 if (perfilId && atributosCache.areasPorPerfil.length) {
                     selArea.innerHTML = optionMarkupId(atributosCache.areasPorPerfil, 'Seleccione un área');
                     if (valorActualArea) {
-                        selArea.value = valorActualArea; // Restaurar valor
+                        selArea.value = valorActualArea; 
                     }
                     selArea.disabled = false;
                 } else {
@@ -508,7 +486,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             }
 
-            // Inicializar validación para campo de Resultado de Aprendizaje
             const campoResultado = item.querySelector('.campo-resultado');
             if (campoResultado) {
                 const index = item.getAttribute('data-index');
@@ -517,7 +494,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             }
 
-            // Actualizar resumen al cambiar valores
             const textos = item.querySelectorAll('input, textarea, select');
             textos.forEach(t => t.addEventListener('blur', () => actualizarResumenFila(item)));
             textos.forEach(t => t.addEventListener('change', () => actualizarResumenFila(item)));
@@ -546,7 +522,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     areasPorPerfil: [],
                     asignaturas: []
                 };
-                // limpiar selects de área y actividad curricular, y campos dominio/competencia
                 document.querySelectorAll('.campo-area').forEach(sel => {
                     sel.disabled = true;
                     sel.innerHTML = '<option value="">Seleccione un área</option>';
@@ -555,19 +530,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     sel.disabled = true;
                     sel.innerHTML = '<option value="">Seleccione una actividad curricular</option>';
                 });
-                // quitar textarea de dominios
                 document.querySelectorAll('.campo-competencia').forEach(el => {
                     el.value = '';
                     autoResizeTextarea(el);
                 });
-                // actualizar resúmenes
                 document.querySelectorAll('#filas-container .accordion-item').forEach(item => actualizarResumenFila(item));
                 poblarSelectsConAtributos();
                 return;
             }
-            // Poblar asignaturas locales por carrera
             atributosCache.asignaturas = <?php echo json_encode($asignaturasTodas); ?>.filter(a => String(a.carrera_id) === String(carreraId));
-            // Resetear perfil mientras carga, y limpiar áreas/dominios/competencias y actividad curricular
             const selPerfil = document.getElementById('perfil_id');
             selPerfil.innerHTML = '<option value="">Seleccione un perfil</option>';
             selPerfil.disabled = true;
@@ -579,37 +550,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 sel.disabled = true;
                 sel.innerHTML = '<option value="">Seleccione una actividad curricular</option>';
             });
-            // quitar textarea de dominios
             document.querySelectorAll('.campo-competencia').forEach(el => {
                 el.value = '';
                 autoResizeTextarea(el);
             });
             document.querySelectorAll('#filas-container .accordion-item').forEach(item => actualizarResumenFila(item));
-            // Cargar anexos dependientes de carrera (perfiles, versiones)
             fetch(`../../src/api/atributos.php?carrera_id=${carreraId}`)
                 .then(r => r.json())
                 .then(data => {
                     atributosCache.perfiles = data.perfiles || [];
                     atributosCache.versiones = data.versiones || [];
                     atributosCache.resultados = [];
-                    // Poblar select de perfil
                     const selPerfil = document.getElementById('perfil_id');
                     selPerfil.innerHTML = optionMarkupId(atributosCache.perfiles, 'Seleccione un perfil');
                     selPerfil.disabled = atributosCache.perfiles.length === 0;
                     atributosCache.areasPorPerfil = [];
-                    // Deshabilitar áreas en filas hasta seleccionar perfil
                     document.querySelectorAll('.campo-area').forEach(sel => {
                         sel.disabled = true;
                         sel.innerHTML = '<option value="">Seleccione un área</option>';
                     });
-                    // Poblar actividades curriculares en filas
                     poblarSelectsConAtributos();
                 })
                 .catch(err => console.error('Error cargar anexos:', err));
         }
 
         function cargarAtributos() {
-            /* selector superior de asignatura eliminado */
         }
 
         function cargarAreasPorPerfil() {
@@ -619,7 +584,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 sel.disabled = true;
                 sel.innerHTML = '<option value="">Seleccione un área</option>';
             });
-            // Limpiar dominio/competencia en todas las filas para evitar datos obsoletos
             document.querySelectorAll('.campo-dominio').forEach(el => el.value = '');
             document.querySelectorAll('.campo-competencia').forEach(el => el.value = '');
             if (!perfilId) return;
@@ -635,18 +599,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 .catch(err => console.error('Error cargar áreas por perfil:', err));
         }
 
-        // Reset total al cambiar Perfil de egreso: limpia todas las filas y deja estado por defecto
+        // Reset total al cambiar Perfil de egreso, se limpia todas las filas y deja estado por defecto
         function onPerfilChange() {
-            // Limpiar caches dependientes
             atributosCache.areasPorPerfil = [];
             atributosCache.resultados = [];
 
             const items = document.querySelectorAll('#filas-container .accordion-item');
             items.forEach((item) => {
-                // Desmarcar todos los checkboxes dentro de la fila
                 item.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
 
-                // Reset selects de área y actividad
                 const selArea = item.querySelector('.campo-area');
                 if (selArea) {
                     selArea.value = '';
@@ -655,7 +616,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
                 const selActividad = item.querySelector('.campo-actividad');
                 if (selActividad) {
-                    // Mantener actividades habilitadas según carrera seleccionada
                     const carreraId = document.getElementById('carrera_id').value;
                     if (carreraId && atributosCache.asignaturas.length) {
                         const prevVal = selActividad.value;
@@ -668,19 +628,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     }
                 }
 
-                // Contenedor de dominios (mensaje base)
                 const domCont = item.querySelector('[id^="dominios-"]');
                 if (domCont) {
                     domCont.innerHTML = '<p class="text-muted mb-0 small">Seleccione un área primero</p>';
                 }
 
-                // Limpiar tabs por dominio y contenidos relacionados
                 item.querySelectorAll('[id^="domTabs-"]').forEach(el => el.innerHTML = '');
                 item.querySelectorAll('[id^="domTabsContent-"]').forEach(el => {
                     el.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios primero</div>';
                 });
 
-                // Limpiar contenedores de resultados y criterios generados
                 item.querySelectorAll('[id^="resultados-"]').forEach(el => {
                     el.innerHTML = '<p class="text-muted mb-0">Seleccione competencias primero</p>';
                 });
@@ -688,17 +645,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     el.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
                 });
 
-                // Limpiar campos de texto auxiliares
                 item.querySelectorAll('.campo-dominio, .campo-competencia, .campo-resultado').forEach(el => {
                     el.value = '';
                     try { autoResizeTextarea(el); } catch (e) {}
                 });
 
-                // Actualizar resumen visual
                 actualizarResumenFila(item);
             });
 
-            // Finalmente, recargar áreas disponibles para el nuevo perfil
             cargarAreasPorPerfil();
         }
 
@@ -710,10 +664,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             const dominiosContainer = document.getElementById(`dominios-${index}`);
             const domTabs = document.getElementById(`domTabs-${index}`);
             const domTabsContent = document.getElementById(`domTabsContent-${index}`);
-            // Resetear estado dependiente de área inmediatamente
             if (domTabs) domTabs.innerHTML = '';
             if (domTabsContent) domTabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios primero</div>';
-            // Desmarcar cualquier selección previa (competencias, RA, CL)
             item.querySelectorAll('.competencia-checkbox, .resultado-checkbox, input[id^="crit_"]').forEach(cb => { if (cb instanceof HTMLInputElement) cb.checked = false; });
             
             if (!areaId || !perfilId) {
@@ -738,7 +690,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>`;
                         });
                         dominiosContainer.innerHTML = html;
-                        // Asegurar mensajes por defecto en pestañas dependientes
                         if (domTabs) domTabs.innerHTML = '';
                         if (domTabsContent) domTabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios primero</div>';
                     }
@@ -778,10 +729,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     const compList = (resp.data.competencias || []);
                     const tabId = `tab-${index}-${detId}`;
                     const paneId = `pane-${index}-${detId}`;
-                    // Obtener nombre legible del dominio desde su label
                     const domLabelEl = item.querySelector(`label[for="dom_${index}_${detId}"]`);
                     let domName = domLabelEl ? domLabelEl.textContent.trim() : `Dominio ${detId}`;
-                    // Truncar a longitud fija con elipsis
                     const maxLen = 18;
                     if (domName.length > maxLen) {
                         domName = domName.substring(0, maxLen - 3) + '...';
@@ -795,7 +744,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         compHtml = '<p class="text-muted mb-0">No hay competencias disponibles</p>';
                     } else {
                         compList.forEach(comp => {
-                            // Evitar duplicar el código al inicio de la descripción (e.g., "C1 - C1 ...")
                             let desc = (comp.descripcion || '').toString();
                             const code = (comp.codigo || '').toString();
                             const normalized = desc.trim();
@@ -888,7 +836,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             const cid = res.competencia_dominio_id;
                             if (!porCompetencia[cid]) {
                                 porCompetencia[cid] = [];
-                                // Extraer código de competencia del label si es posible
                                 const label = competenciasLabels[cid] || 'Competencia';
                                 const match = label.match(/^([^-]+)\s*-/);
                                 competenciasCodigos[cid] = match ? match[1].trim() : '';
@@ -900,10 +847,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         Object.keys(porCompetencia).forEach(compId => {
                             const compLabel = competenciasLabels[compId] || 'Competencia';
                             const compCodigo = competenciasCodigos[compId];
-                            // Mostrar código de competencia de forma destacada
                             let compHeader = compCodigo ? `<strong>${compCodigo}</strong>` : '';
                             if (compLabel) {
-                                // Sanear compLabel para no repetir el código al inicio
                                 const escCode = compCodigo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                                 let cleaned = compLabel.replace(new RegExp('^' + escCode + '\\s*-\\s*', 'i'), '').trim();
                                 cleaned = cleaned.replace(new RegExp('^' + escCode + '\\s+', 'i'), '').trim();
@@ -936,7 +881,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         resultadosContainer.innerHTML = html;
                         criteriosContainer.innerHTML = '<p class="text-muted mb-0">Seleccione resultados de aprendizaje primero</p>';
 
-                        // Expandir accordion-body si es necesario
                         const accordionItem = resultadosContainer.closest('.accordion-item');
                         if (accordionItem) {
                             const button = accordionItem.querySelector('.accordion-button');
@@ -959,7 +903,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             const resultadosIds = Array.from(resultadosChecks).map(cb => cb.value);
             const resultadosLabels = {};
 
-            // Guardar las etiquetas de resultados para referencias
             resultadosChecks.forEach(check => {
                 const label = item.querySelector(`label[for="${check.id}"]`);
                 if (label) {
@@ -1008,7 +951,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         let html = '<div>';
                         Object.keys(porResultado).forEach(resId => {
                             const resData = porResultado[resId];
-                            // Header como: C1 - RA1 - descripción (sin duplicar códigos)
                             const compCode = (resData.competencia_codigo || '').toString();
                             const escRes = resData.codigo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                             let descClean = (resData.descripcion || '').toString();
@@ -1022,7 +964,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <div style="font-weight: 600; color: #155724; margin-bottom: 10px; font-size: 0.95rem;">${resHeader}</div>`;
 
                             resData.criterios.forEach(crit => {
-                                // Mostrar sólo el código del criterio: CL1 - descripción
                                 const codigoCompleto = `${crit.codigo}`;
                                 html += `<div style="margin-bottom: 8px; margin-left: 12px;">
                                     <div class="form-check">
@@ -1043,7 +984,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     }
                     actualizarResumenFila(item);
 
-                    // Expandir accordion-body si es necesario
                     const accordionItem = criteriosContainer.closest('.accordion-item');
                     if (accordionItem) {
                         const button = accordionItem.querySelector('.accordion-button');
@@ -1062,9 +1002,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         function autoResizeTextarea(textarea) {
             if (!textarea) return;
-            // Reset height to auto to get the correct scrollHeight
             textarea.style.height = 'auto';
-            // Set height based on scrollHeight
             textarea.style.height = Math.max(textarea.scrollHeight, 60) + 'px';
         }
 
@@ -1093,12 +1031,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Desplaza la página exactamente al campo indicado, considerando encabezados fijos
         function scrollToField(el) {
             if (!el) return;
-            // Si el elemento está dentro de un collapse, asegúrate de abrirlo primero
             const accordionItem = el.closest('.accordion-item');
             if (accordionItem) expandirItem(accordionItem);
             const rect = el.getBoundingClientRect();
             const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
-            // Ajuste por posible header fijo (aprox. 80px)
             const offset = 80;
             const targetY = rect.top + currentScroll - offset;
             window.scrollTo({ top: targetY, behavior: 'smooth' });
@@ -1113,7 +1049,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             targets.forEach(el => {
                 const handler = () => {
                     el.classList.remove('campo-error','shake-error');
-                    // limpiar estilos inline previos
                     el.style.borderColor = '';
                     el.style.borderWidth = '';
                 };
@@ -1166,7 +1101,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 return false;
             }
 
-            // Validar filas
             const items = document.querySelectorAll('.accordion-item');
 
             if (items.length === 0) {
@@ -1194,7 +1128,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     return false;
                 }
 
-                // Validación por cada dominio seleccionado: al menos una competencia, un resultado y un criterio
                 const dominiosCheckedEls = Array.from(item.querySelectorAll(`#dominios-${isNaN(idx)?'':idx} .dominio-checkbox:checked`));
                 for (let d = 0; d < dominiosCheckedEls.length; d++) {
                     const detId = dominiosCheckedEls[d].value;
@@ -1328,7 +1261,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         // Agregar validación al formulario
         document.addEventListener('DOMContentLoaded', () => {
-            // Monitor de accordion para expandir altura
             document.querySelectorAll('.accordion-button').forEach(button => {
                 button.addEventListener('shown.bs.collapse', function() {
                     const body = this.closest('.accordion-item').querySelector('.accordion-body');
@@ -1355,7 +1287,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 form.addEventListener('submit', function(e) {
                     e.preventDefault();
                     if (validarFormulario()) {
-                        // Copiar valores de campos disabled a campos hidden antes de enviar
                         document.querySelectorAll('textarea.campo-dominio, textarea.campo-competencia').forEach((campo, idx) => {
                             const hiddenDominio = document.querySelector(`input[name="filas[${campo.name.match(/\[(\d+)\]/)[1]}][dominio_value]"]`);
                             const hiddenCompetencia = document.querySelector(`input[name="filas[${campo.name.match(/\[(\d+)\]/)[1]}][competencia_value]"]`);
@@ -1378,7 +1309,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             }
                         });
 
-                        // Enviar por AJAX
                         const formData = new FormData(form);
 
                         fetch('agregar_matriz.php', {
@@ -1414,7 +1344,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 });
             }
 
-            // Escuchar cambios de Perfil de egreso y resetear todo
             const perfilSel = document.getElementById('perfil_id');
             if (perfilSel) {
                 perfilSel.addEventListener('change', onPerfilChange);
@@ -1423,7 +1352,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             agregarFila(false);
         });
 
-        // Funciones de toast
         function mostrarToastExito(mensaje = 'Matriz creada correctamente', duracion = 1500) {
             const container = document.getElementById('toast-container');
             if (container && container.style.display === 'none') container.style.display = 'block';
@@ -1432,7 +1360,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             toast.textContent = mensaje;
             container.appendChild(toast);
 
-            // Auto-remover después del tiempo especificado
             setTimeout(() => {
                 toast.classList.add('hidden');
                 setTimeout(() => toast.remove(), 300);
@@ -1447,7 +1374,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             toast.textContent = mensaje;
             container.appendChild(toast);
 
-            // Auto-remover después de 4 segundos
             setTimeout(() => {
                 toast.classList.add('hidden');
                 setTimeout(() => toast.remove(), 300);
@@ -1456,7 +1382,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </script>
 
     <style>
-        /* Auto-ajustar altura de textareas deshabilitadas para que crezcan con el contenido */
         textarea.campo-dominio,
         textarea.campo-competencia {
             min-height: 60px;
@@ -1470,14 +1395,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             cursor: not-allowed;
         }
 
-        /* Auto-ajustar altura del textarea cuando cambia el contenido */
         textarea.auto-resize {
             height: auto;
             min-height: 60px;
             overflow-y: hidden;
         }
 
-        /* Permitir que accordion-body crezca sin límite */
         .accordion-body {
             max-height: none !important;
             overflow: visible !important;
@@ -1506,7 +1429,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         .shake-error { animation: shake 0.45s ease; }
 
-        /* Toast flotante */
         .toast-container {
             position: fixed;
             top: 20px;
@@ -1566,7 +1488,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             animation: slideOut 0.3s ease-out forwards;
         }
 
-        /* Estilos para checkboxes */
         .competencias-checkboxes,
         .resultados-checkboxes,
         .criterios-checkboxes {
@@ -1596,7 +1517,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             display: inline-block !important;
             max-height: none !important;
             overflow: visible !important;
-            line-height: 1.25rem; /* align text with checkbox */
+            line-height: 1.25rem;
         }
 
         .form-check-label small {
