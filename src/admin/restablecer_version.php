@@ -19,7 +19,6 @@ $response = [
 ];
 
 try {
-    // Obtener parámetros
     $matriz_id = isset($_POST['matriz_id']) ? (int)$_POST['matriz_id'] : null;
     $version_id = isset($_POST['version_id']) ? (int)$_POST['version_id'] : null;
 
@@ -29,7 +28,6 @@ try {
         exit;
     }
 
-    // Verificar que la matriz existe
     $matriz = $matrizModel->obtenerPorId($matriz_id);
     if (!$matriz) {
         $response['error'] = 'Matriz no encontrada';

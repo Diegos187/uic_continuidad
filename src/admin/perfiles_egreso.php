@@ -101,7 +101,6 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
                     const url = this.getAttribute('data-url') || this.getAttribute('href');
                     if (!url) return;
                     if (typeof Swal === 'undefined') {
-                        // Fallback si no está SweetAlert2
                         if (confirm('Al eliminar este perfil de egreso, también se eliminarán todas las matrices de coherencia asociadas. ¿Desea continuar?')) {
                             window.location.href = url;
                         }

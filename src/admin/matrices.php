@@ -152,7 +152,6 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                 </div>
                             </div>
                         </div>
-                        <!-- Las filas se mantienen asociadas internamente a la versión; se mostrarán en detalle más adelante -->
                     </div>
                 </div>
 
@@ -169,17 +168,15 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                 $versiones = $versionModel->obtenerVersionesPorMatriz((int)$m['id']);
                                 $versionActualId = (int)($m['version_id'] ?? 0);
 
-                                // Ordenar para que la versión actual esté al principio
                                 if (!empty($versiones)) {
                                     usort($versiones, function ($a, $b) use ($versionActualId) {
                                         $aEsActual = ((int)$a['id'] === $versionActualId) ? 1 : 0;
                                         $bEsActual = ((int)$b['id'] === $versionActualId) ? 1 : 0;
 
                                         if ($aEsActual !== $bEsActual) {
-                                            return $bEsActual - $aEsActual; // Actual primero
+                                            return $bEsActual - $aEsActual; 
                                         }
 
-                                        // Si ambas tienen el mismo estado, ordenar por fecha descendente
                                         return strtotime($b['fecha_creacion']) - strtotime($a['fecha_creacion']);
                                     });
                                 }
@@ -273,7 +270,6 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Realizar petición para eliminar toda la matriz
                     fetch('eliminar_matriz.php', {
                             method: 'POST',
                             headers: {
@@ -329,7 +325,6 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Realizar petición para eliminar solo la versión
                     fetch('eliminar_matriz.php', {
                             method: 'POST',
                             headers: {
@@ -386,7 +381,6 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Realizar petición para restablecer
                     fetch('../../src/admin/restablecer_version.php', {
                             method: 'POST',
                             headers: {
@@ -406,7 +400,6 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                     icon: 'success',
                                     confirmButtonColor: '#0d6efd'
                                 }).then(() => {
-                                    // Recargar la página para actualizar la vista
                                     location.reload();
                                 });
                             } else {
@@ -443,7 +436,6 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Realizar petición para eliminar
                     fetch('../../src/admin/eliminar_version.php', {
                             method: 'POST',
                             headers: {
@@ -463,7 +455,6 @@ if (isset($_GET['carrera_id']) && $_GET['carrera_id'] !== '') {
                                     icon: 'success',
                                     confirmButtonColor: '#0d6efd'
                                 }).then(() => {
-                                    // Recargar la página para actualizar la vista
                                     location.reload();
                                 });
                             } else {

@@ -52,7 +52,6 @@ if (empty($filas)) {
     exit();
 }
 
-// Agrupar filas por área de formación
 $porArea = [];
 foreach ($filas as $f) {
     $areaId = (int)($f['area_formacion_id'] ?? 0);
@@ -77,8 +76,7 @@ foreach ($criteriosMarcadosRaw as $r) {
     $criteriosMarcadosPorFila[$mcid][] = (int)$r['criterio_logro_id'];
 }
 
-// Helpers
-function colLetter($index) { // 1-based -> letters
+function colLetter($index) { 
     $str = '';
     while ($index > 0) {
         $index--;
@@ -88,19 +86,16 @@ function colLetter($index) { // 1-based -> letters
     return $str;
 }
 
-// Preparar una sola hoja con todas las áreas lado a lado
 $spreadsheet = new Spreadsheet();
 $sheet = $spreadsheet->getActiveSheet();
 $sheet->setTitle('Matriz');
 
-// Encabezado principal
 $sheet->setCellValue('A1', 'MATRIZ DE TRIBUTACIÓN');
 $sheet->setCellValue('A3', 'Semestre');
 $sheet->setCellValue('B3', 'Actividad Curricular');
 
-// Construir estructuras por área: nombre, dominios, árbol y mapas de columnas
-$areasInfo = []; // areaId => ['nombre','perfilId','dominios'=>[detId=>name],'estructura'=>[...],'colStart'=>int,'colEnd'=>int,'critColMap'=>[]]
-$colIndex = 3; // C
+$areasInfo = []; 
+$colIndex = 3;
 foreach ($porArea as $areaId => $filasArea) {
     // Nombre área y perfil
     $areaNombre = '';
@@ -151,7 +146,7 @@ foreach ($porArea as $areaId => $filasArea) {
     }
 
     // Construir columnas agrupadas y mapas
-    $critColMap = []; // crit_id => abs col
+    $critColMap = [];
     $areaStart = $colIndex;
     foreach ($estructuraPorDominio as $detId => $estructura) {
         $startDom = $colIndex;
@@ -180,7 +175,6 @@ foreach ($porArea as $areaId => $filasArea) {
         }
     }
     $areaEnd = $colIndex - 1;
-    // Área en fila 2 sobre sus columnas
     if ($areaEnd >= $areaStart) {
         $sheet->mergeCells(colLetter($areaStart) . '2:' . colLetter($areaEnd) . '2');
         $sheet->setCellValue(colLetter($areaStart) . '2', $areaNombre);
@@ -197,7 +191,6 @@ foreach ($porArea as $areaId => $filasArea) {
     ];
 }
 
-// Estilos encabezado multi-nivel global
 $maxColLetter = colLetter(max(3, $colIndex - 1));
 $sheet->getStyle('A3:' . $maxColLetter . '6')->applyFromArray([
     'font' => ['bold' => true, 'size' => 10],
@@ -205,7 +198,6 @@ $sheet->getStyle('A3:' . $maxColLetter . '6')->applyFromArray([
     'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
     'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'E9EEF5']]
 ]);
-// Dar estilo fila 2 nombres de áreas
 foreach ($areasInfo as $ai) {
     if ($ai['colEnd'] >= $ai['colStart']) {
         $sheet->getStyle(colLetter($ai['colStart']) . '2:' . colLetter($ai['colEnd']) . '2')->applyFromArray([
@@ -216,33 +208,29 @@ foreach ($areasInfo as $ai) {
     }
 }
 
-// Ajustar anchos mejorados (competencias/resultados algo más anchos que criterios)
 $sheet->getColumnDimension('A')->setWidth(11); // Semestre
 $sheet->getColumnDimension('B')->setWidth(30); // Actividad Curricular
 for ($c = 3; $c < $colIndex; $c++) {
     $letter = colLetter($c);
-    // Heurística: fila 4 = competencias, fila 5 = resultados, fila 6 = criterios
     $valorFila4 = $sheet->getCell($letter . '4')->getValue();
     $valorFila5 = $sheet->getCell($letter . '5')->getValue();
     $valorFila6 = $sheet->getCell($letter . '6')->getValue();
-    if ($valorFila4 && !$valorFila5 && !$valorFila6) { // columna completa de competencia (merged en 4)
-        $sheet->getColumnDimension($letter)->setWidth(8); // más espacio para código comp
-    } elseif ($valorFila5 && !$valorFila6) { // resultado (merged en 5)
+    if ($valorFila4 && !$valorFila5 && !$valorFila6) { 
+        $sheet->getColumnDimension($letter)->setWidth(8); 
+    } elseif ($valorFila5 && !$valorFila6) { 
         $sheet->getColumnDimension($letter)->setWidth(7);
-    } elseif ($valorFila6) { // criterio individual
+    } elseif ($valorFila6) { 
         $sheet->getColumnDimension($letter)->setWidth(5.5);
-    } else { // dominio o área subdividida
+    } else { 
         $sheet->getColumnDimension($letter)->setWidth(6);
     }
 }
 
-// Colorear distintos niveles para mejorar legibilidad
-$sheet->getStyle('A3:' . $maxColLetter . '3')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'DBE5F1']]]); // Dominios
-$sheet->getStyle('A4:' . $maxColLetter . '4')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'E9EEF5']]]); // Competencias
-$sheet->getStyle('A5:' . $maxColLetter . '5')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'F2F5F9']]]); // Resultados
-$sheet->getStyle('A6:' . $maxColLetter . '6')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'FFFFFF']]]); // Criterios
+$sheet->getStyle('A3:' . $maxColLetter . '3')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'DBE5F1']]]); 
+$sheet->getStyle('A4:' . $maxColLetter . '4')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'E9EEF5']]]); 
+$sheet->getStyle('A5:' . $maxColLetter . '5')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'F2F5F9']]]); 
+$sheet->getStyle('A6:' . $maxColLetter . '6')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID,'startColor'=>['argb'=>'FFFFFF']]]); 
 
-// Negrita solo códigos en filas 4,5,6 (evita sobrecarga si hay textos largos)
 for ($c = 3; $c < $colIndex; $c++) {
     $letter = colLetter($c);
     foreach ([4,5,6] as $r) {
@@ -253,13 +241,11 @@ for ($c = 3; $c < $colIndex; $c++) {
     }
 }
 
-// Ajustar altura de filas de encabezado para evitar solapamiento
 $sheet->getRowDimension(3)->setRowHeight(32);
 $sheet->getRowDimension(4)->setRowHeight(28);
 $sheet->getRowDimension(5)->setRowHeight(28);
 $sheet->getRowDimension(6)->setRowHeight(22);
 
-// Render de filas: todas las asignaturas independientemente del área
 $row = 7;
 foreach ($filas as $fa) {
     $sheet->setCellValue('A' . $row, $fa['semestre']);
@@ -280,10 +266,8 @@ foreach ($filas as $fa) {
         'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
         'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
     ]);
-    // Actividad Curricular alineada a la izquierda, permitir wrap
     $sheet->getStyle('B' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
     $sheet->getStyle('B' . $row)->getAlignment()->setWrapText(true);
-    // Marcar X en negrita para mejor visibilidad
     foreach ($criteriosMarcadosPorFila[$mcid] ?? [] as $critid) {
         if (isset($ai['critColMap'][$critid])) {
             $colL = colLetter($ai['critColMap'][$critid]);
@@ -293,7 +277,6 @@ foreach ($filas as $fa) {
     $row++;
 }
 
-// Congelar cabecera
 $sheet->freezePane('C7');
 
 $writer = new Xlsx($spreadsheet);

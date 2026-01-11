@@ -40,9 +40,7 @@ if (!$version) {
     exit;
 }
 
-// Obtener las filas de la matriz
 $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_id);
-// Construir estructura jerárquica por dominios para cada fila: Dominio → Competencia → RA → CL
 $detallesPorFila = [];
 foreach ($filas as $f) {
     $mcid = (int)($f['id'] ?? 0);
@@ -251,7 +249,6 @@ foreach ($filas as $f) {
             display: block;
         }
 <?php
-// Helper para decodificar entidades al renderizar y escapar para HTML
 function dec($s) { return is_string($s) ? html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8') : $s; }
 function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
 ?>
@@ -273,7 +270,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
             margin-bottom: 0;
         }
 
-        /* Campos principales más amplios */
         .field-row.wide {
             grid-template-columns: 1fr;
         }
@@ -352,7 +348,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
             font-size: 0.9rem;
         }
 
-        /* Anchos de columnas similares a Excel */
         .matrix-table td:nth-child(2),
         .matrix-table th:nth-child(2) {
             width: 240px;
@@ -470,7 +465,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
             display: none;
         }
 
-        /* Estilos para jerarquía en vista detallada */
         .hierarchy-container {
             font-size: 0.9rem;
             line-height: 1.6;
@@ -587,7 +581,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
         </div>
 
         <?php if (!empty($filas)): ?>
-            <!-- Vista Tarjetas / Tabla Toggle -->
             <div class="view-toggle">
                 <button type="button" class="btn btn-outline-primary active" id="btn-cards-view" onclick="cambiarVista('cards')">
                     📋 Vista Detallada
@@ -597,7 +590,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                 </button>
             </div>
 
-            <!-- Vista en Tarjetas (Predeterminada) -->
             <div id="cards-view" class="active">
                 <?php foreach ($filas as $index => $fila): ?>
                     <div class="row-card collapsed">
@@ -607,7 +599,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                                 <div style="min-width: 0; flex: 1;">
                                     <div class="row-card-title">
                                         <?php
-                                            // Resumen de cabecera: Fila X — Área | primer Dominio | Actividad
                                             $areaTxt = isset($fila['area_formacion_nombre']) && $fila['area_formacion_nombre'] !== ''
                                                 ? $fila['area_formacion_nombre'] : 'Área no especificada';
                                             $mcid_local = (int)($fila['id'] ?? 0);
@@ -649,7 +640,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                             $groups = $detallesPorFila[$mcid] ?? null;
                             ?>
 
-                            <!-- Fila fija: Actividad y SCT -->
                             <div class="field-row">
                                 <div class="field-group">
                                     <span class="field-label">Actividad Curricular</span>
@@ -662,7 +652,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                             </div>
 
                             <?php if ($groups && count($groups) > 0): ?>
-                                <!-- Pestañas por Dominio -->
                                 <?php $tabId = 'tabs-' . $mcid . '-' . ($index + 1); ?>
                                 <ul class="nav nav-tabs" id="<?php echo $tabId; ?>" role="tablist" style="margin-bottom: 1rem;">
                                     <?php $first = true; foreach ($groups as $domId => $g): ?>
@@ -707,7 +696,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                                     <?php $firstPane = false; endforeach; ?>
                                 </div>
 
-                                <!-- Campos comunes -->
                                 <div class="field-row wide">
                                     <div class="field-group">
                                         <span class="field-label">Contenido/Saberes</span>
@@ -731,7 +719,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                                     </div>
                                 </div>
                             <?php else: ?>
-                                <!-- Fallback: layout original cuando no hay grupos por dominio -->
                                 <div class="field-row wide">
                                     <div class="field-group">
                                         <span class="field-label">Resultado de Aprendizaje</span>
@@ -792,7 +779,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                 <?php endforeach; ?>
             </div>
 
-            <!-- Vista en Tabla -->
             <div id="table-view" class="hidden">
                 <div class="matrix-table">
                     <table class="table table-sm">
@@ -815,13 +801,10 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                         <tbody>
                             <?php foreach ($filas as $index => $fila): ?>
                                 <tr>
-                                    <!-- Columna 1: # (Row Number) -->
                                     <td class="row-number"><?php echo $index + 1; ?></td>
                                     
-                                    <!-- Columna 2: ÁREA DE FORMACIÓN -->
                                     <td><?php echo htmlspecialchars($fila['area_formacion_nombre'] ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
                                     
-                                    <!-- Columna 3: DOMINIO -->
                                     <td>
                                         <?php
                                         $mcid = (int)($fila['id'] ?? 0);
@@ -834,7 +817,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                                         ?>
                                     </td>
                                     
-                                    <!-- Columna 4: COMPETENCIA -->
                                     <td>
                                         <?php
                                         $mcid = (int)($fila['id'] ?? 0);
@@ -856,7 +838,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                                         ?>
                                     </td>
                                     
-                                    <!-- Columna 5: RESULTADOS DE APRENDIZAJE -->
                                     <td>
                                         <?php
                                         $mcid = (int)($fila['id'] ?? 0);
@@ -885,7 +866,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                                         ?>
                                     </td>
                                     
-                                    <!-- Columna 6: CRITERIOS DE LOGRO -->
                                     <td>
                                         <?php
                                         $mcid = (int)($fila['id'] ?? 0);
@@ -921,22 +901,16 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
                                         ?>
                                     </td>
                                     
-                                    <!-- Columna 7: CONTENIDOS/SABERES -->
                                     <td><?php echo htmlspecialchars($fila['contenidos'] ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
                                     
-                                    <!-- Columna 8: ACTIVIDAD CURRICULAR -->
                                     <td><?php echo !empty($fila['asignatura_nombre']) ? htmlspecialchars($fila['asignatura_nombre']) : ((!empty($fila['asignatura_id']) ? htmlspecialchars($fila['asignatura_id']) : '')); ?></td>
                                     
-                                    <!-- Columna 9: SCT-CHILE -->
                                     <td><?php echo htmlspecialchars($fila['sct_chile'] ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
                                     
-                                    <!-- Columna 10: METODOLOGÍAS ACTIVAS CENTRADAS EN EL ESTUDIANTADO -->
                                     <td><?php echo htmlspecialchars($fila['metodologias'] ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
                                     
-                                    <!-- Columna 11: ESTRATEGIAS DE EVALUACIÓN -->
                                     <td><?php echo htmlspecialchars($fila['estrategias'] ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
                                     
-                                    <!-- Columna 12: BIBLIOGRAFÍA -->
                                     <td><?php echo htmlspecialchars($fila['bibliografia'] ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -994,7 +968,6 @@ function safe($s) { return htmlspecialchars(dec($s), ENT_QUOTES, 'UTF-8'); }
             }
         }
 
-        // Restaurar vista guardada al cargar la página
         document.addEventListener('DOMContentLoaded', function() {
             const vistaGuardada = localStorage.getItem('previewVista') || 'cards';
             cambiarVista(vistaGuardada);

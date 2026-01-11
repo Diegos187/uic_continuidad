@@ -1,5 +1,4 @@
 <?php
-// subir_archivo.php
 session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/Archivo.php';
@@ -10,7 +9,7 @@ verificarSesion();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo'])) {
     $archivo = $_FILES['archivo'];
     $descripcion = $_POST['descripcion'];
-    $maxSize = 7 * 1024 * 1024; // 7MB en bytes
+    $maxSize = 7 * 1024 * 1024; 
     
     if ($archivo['size'] > $maxSize) {
         header('Location: archivos.php?error=El archivo excede el límite de 7MB');
