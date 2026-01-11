@@ -99,27 +99,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Debe ingresar un nombre (versión) para el perfil de egreso.';
     } else {
         $filasValidas = [];
-        $errorArea = false; // área faltante cuando hay dominio
-        $errorCampos = false; // faltan competencias
-        $errorCompetencias = false; // campos código/descripcion competencia incompletos
-        $errorDominio = false; // área seleccionada sin dominio
-        $errorFaltanResultados = false; // falta al menos un RA por competencia
-        $errorResultados = false; // código/descripcion RA incompletos
-        $errorFaltanCriterios = false; // falta criterio por RA
-        $errorCriterios = false; // código/descripcion criterio incompletos
+        $errorArea = false; 
+        $errorCampos = false; 
+        $errorCompetencias = false; 
+        $errorDominio = false; 
+        $errorFaltanResultados = false; 
+        $errorResultados = false; 
+        $errorFaltanCriterios = false; 
+        $errorCriterios = false; 
 
         foreach ($filas as $f) {
             $dom = isset($f['dominio']) ? trim($f['dominio']) : '';
             $areaId = isset($f['area_formacion_id']) ? (int)$f['area_formacion_id'] : 0;
             $competencias = isset($f['competencias']) && is_array($f['competencias']) ? $f['competencias'] : [];
 
-            // Si se seleccionó área pero no dominio -> errorDominio
             if ($areaId > 0 && $dom === '') {
                 $errorDominio = true;
                 break;
             }
 
-            // Sólo validar filas donde se ingresó dominio (flujo existente)
             if ($dom !== '') {
                 if ($areaId <= 0) {
                     $errorArea = true;
@@ -146,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if (empty($competenciasValidas)) {
-                    $errorCampos = true; // faltan competencias
+                    $errorCampos = true; 
                     break;
                 }
 
@@ -159,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $raDescripcion = isset($ra['descripcion']) ? trim($ra['descripcion']) : '';
                         if ($raCodigo !== '' || $raDescripcion !== '') {
                             if ($raCodigo === '' || $raDescripcion === '') {
-                                $errorResultados = true; break 3; // salir de todas las validaciones
+                                $errorResultados = true; break 3; 
                             }
                             $criteriosLista = isset($ra['criterios']) && is_array($ra['criterios']) ? $ra['criterios'] : [];
                             $criteriosValidos = [];
@@ -211,7 +209,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $conn->beginTransaction();
 
-                // Actualizar perfil
                 $sql = "UPDATE perfiles_egreso SET descripcion = :descripcion WHERE id = :id";
                 $stmt = $conn->prepare($sql);
                 $stmt->bindParam(':id', $perfilId);
@@ -220,11 +217,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Error al actualizar perfil de egreso.');
                 }
 
-                // Obtener detalles existentes
                 $detallesExistentes = $detalleModel->listarPorPerfil($perfilId);
                 $detallesNuevosIds = array_filter(array_column($filasValidas, 'id'));
 
-                // Eliminar detalles que ya no existen
                 foreach ($detallesExistentes as $detalle) {
                     if (!in_array($detalle['id'], $detallesNuevosIds)) {
                         $sql = "DELETE FROM perfiles_egreso_detalle WHERE id = :id";
@@ -239,7 +234,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $detalleId = $fila['id'];
 
                     if ($detalleId) {
-                        // Actualizar existente
                         $sql = "UPDATE perfiles_egreso_detalle 
                                 SET area_formacion_id = :area_id, dominio = :dominio, competencia = :competencia 
                                 WHERE id = :id AND perfil_egreso_id = :perfil_id";
@@ -269,11 +263,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $detalleId = $conn->lastInsertId();
                     }
 
-                    // Procesar competencias
                     $competenciasExistentes = $competenciaModel->obtenerPorDetalle($detalleId);
                     $competenciasNuevosIds = array_filter(array_column($fila['competencias'], 'id'));
 
-                    // Eliminar competencias que ya no existen
                     foreach ($competenciasExistentes as $comp) {
                         if (!in_array($comp['id'], $competenciasNuevosIds)) {
                             $sql = "DELETE FROM competencias_dominio WHERE id = :id";
@@ -288,7 +280,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $competenciaId = $competencia['id'];
 
                         if ($competenciaId) {
-                            // Actualizar existente
                             $sql = "UPDATE competencias_dominio 
                                     SET codigo = :codigo, descripcion = :descripcion 
                                     WHERE id = :id";
@@ -298,7 +289,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $stmt->bindParam(':descripcion', $competencia['descripcion']);
                             $stmt->execute();
                         } else {
-                            // Crear nuevo
                             $competenciaId = $competenciaModel->crear(
                                 $detalleId,
                                 $competencia['codigo'],
@@ -310,7 +300,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $resultadosExistentes = $resultadoModel->obtenerPorCompetencia($competenciaId);
                         $resultadosNuevosIds = array_filter(array_column($competencia['resultados'], 'id'));
 
-                        // Eliminar resultados que ya no existen
                         foreach ($resultadosExistentes as $ra) {
                             if (!in_array($ra['id'], $resultadosNuevosIds)) {
                                 $sql = "DELETE FROM resultados_aprendizaje_ref WHERE id = :id";
@@ -325,7 +314,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $resultadoId = $resultado['id'] ?? null;
 
                             if ($resultadoId) {
-                                // Actualizar existente
                                 $sql = "UPDATE resultados_aprendizaje_ref 
                                         SET codigo = :codigo, descripcion = :descripcion 
                                         WHERE id = :id";
@@ -335,7 +323,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt->bindParam(':descripcion', $resultado['descripcion']);
                                 $stmt->execute();
                             } else {
-                                // Crear nuevo
                                 $resultadoId = $resultadoModel->crear(
                                     $competenciaId,
                                     $resultado['codigo'],
@@ -347,7 +334,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $criteriosExistentes = $criterioModel->obtenerPorResultado($resultadoId);
                             $criteriosNuevosIds = array_filter(array_column($resultado['criterios'] ?? [], 'id'));
 
-                            // Eliminar criterios que ya no existen
                             foreach ($criteriosExistentes as $cl) {
                                 if (!in_array($cl['id'], $criteriosNuevosIds)) {
                                     $sql = "DELETE FROM criterios_logro_ref WHERE id = :id";
@@ -365,7 +351,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                                 if ($clCodigo && $clDescripcion) {
                                     if ($criterioId) {
-                                        // Actualizar existente
                                         $sql = "UPDATE criterios_logro_ref 
                                                 SET codigo = :codigo, descripcion = :descripcion 
                                                 WHERE id = :id";
@@ -375,7 +360,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         $stmt->bindParam(':descripcion', $clDescripcion);
                                         $stmt->execute();
                                     } else {
-                                        // Crear nuevo
                                         $criterioModel->crear(
                                             $resultadoId,
                                             $clCodigo,
@@ -449,7 +433,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
 
                             <div class="accordion" id="filas-container"></div>
-                            <!-- Botón adicional al final para agregar más dominios -->
                             <div class="d-flex justify-content-end mt-3">
                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar Dominio</button>
                             </div>
@@ -626,7 +609,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>`;
         }
 
-        // Auto-resize helper for textareas inside a container
         function autoResizeTextareas(container) {
             if (!container) return;
             container.querySelectorAll('textarea').forEach(ta => {
@@ -655,7 +637,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // Actualiza el título del acordeón con "Área - Dominio"
             const areaSelect = node.querySelector('.campo-area');
             const dominioTextarea = node.querySelector('.campo-dominio');
             const titleEl = node.querySelector('.fila-title');
@@ -670,23 +651,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             };
             if (areaSelect) areaSelect.addEventListener('change', updateTitle);
             if (dominioTextarea) dominioTextarea.addEventListener('input', updateTitle);
-            // inicial
             updateTitle();
 
             filaCounter++;
-            // Mantener todas colapsadas si autoExpand es false (vista inicial)
             if (autoExpand) {
                 colapsarTodas();
                 expandirUltima();
             } else {
-                // Quitar la clase show del item recién creado si vino con ella
                 const collapse = node.querySelector('.accordion-collapse');
                 if (collapse && collapse.classList.contains('show')) {
                     collapse.classList.remove('show');
                 }
             }
 
-            // Conectar evento de expansión para auto-resize de textareas
             const collapseEl = node.querySelector('.accordion-collapse');
             if (collapseEl) {
                 collapseEl.addEventListener('shown.bs.collapse', () => autoResizeTextareas(node));
@@ -732,7 +709,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // Ajustar tamaños tras insertar competencia
             autoResizeTextareas(node);
         }
 
@@ -803,17 +779,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Cargar filas existentes colapsadas
             ESTRUCTURA_EXISTENTE.forEach((detalle) => {
                 agregarFila(detalle, false);
             });
 
-            // Si no hay filas existentes, agregar una inicial también colapsada
             if (ESTRUCTURA_EXISTENTE.length === 0) {
                 agregarFila(null, false);
             }
 
-            // activar auto-grow
             const initAutoGrow = () => {
                 const autos = document.querySelectorAll('.auto-grow');
                 autos.forEach(el => {
@@ -829,7 +802,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
 
-            // Vincular auto-resize en expansión para filas ya creadas
             document.querySelectorAll('#filas-container .accordion-collapse').forEach(col => {
                 const item = col.closest('.accordion-item');
                 col.addEventListener('shown.bs.collapse', () => autoResizeTextareas(item));
@@ -970,11 +942,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     timer: 1800,
                     showConfirmButton: false
                 }).then(() => {
-                    // Después del cierre del modal (auto o manual) recargar para ver cambios persistentes
                     location.reload();
                 });
             } else {
-                // Fallback al antiguo toast si SweetAlert2 no está disponible
                 const container = document.getElementById('toast-container');
                 const toast = document.createElement('div');
                 toast.className = 'toast-success';
@@ -989,7 +959,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function mostrarToastError(mensaje = 'Error al guardar') {
-            // Solo toast no modal para no interrumpir flujo
             const container = document.getElementById('toast-container');
             if (container.style.display === 'none') container.style.display = 'block';
             const toast = document.createElement('div');
@@ -1017,14 +986,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     const expandAndFocus = (item, el) => {
                         if (!item) return;
-                        // Expand the accordion item
                         const collapse = item.querySelector('.accordion-collapse');
                         if (collapse && !collapse.classList.contains('show')) {
                             collapse.classList.add('show');
                         }
-                        // Scroll into view
                         item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        // Focus element if provided
                         if (el && typeof el.focus === 'function') {
                             setTimeout(() => el.focus(), 150);
                         }
@@ -1039,7 +1005,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     const marcarError = (el) => {
                         if (!el) return;
                         el.classList.add('campo-error');
-                        // trigger shake animation
                         el.classList.add('shake-error');
                         setTimeout(() => el.classList.remove('shake-error'), 600);
                     };
@@ -1057,13 +1022,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         const dominio = item.querySelector('.campo-dominio')?.value.trim() || '';
                         const area = item.querySelector('.campo-area')?.value || '';
 
-                        // Si hay área sin dominio -> error inmediato
                         if (area && !dominio) {
                             reportError('Debe ingresar el dominio cuando selecciona un área de formación', item, item.querySelector('.campo-dominio'));
                             return;
                         }
 
-                        // Validar sólo filas con dominio (como en servidor)
                         if (!dominio) continue;
 
                         if (!area) {
