@@ -18,11 +18,9 @@ if ($id <= 0 || $carreraId <= 0) {
 $db = new Database();
 $conn = $db->conectar();
 $perfilModel = new PerfilEgreso($conn);
-// Asegura existencia de la tabla detalle con FK ON DELETE CASCADE (si se está usando esa tabla auxiliar)
 new PerfilEgresoDetalle($conn);
 
 try {
-    // Verificar que el perfil pertenezca a la carrera
     $perfil = $perfilModel->obtenerPorId($id);
     if (!$perfil || (int)$perfil['carrera_id'] !== $carreraId) {
         header('Location: perfiles_egreso.php?carrera_id=' . $carreraId);
@@ -31,18 +29,15 @@ try {
 
     $conn->beginTransaction();
 
-    // 1) Eliminar matrices de coherencia asociadas explícitamente
     $stmtDelMatrices = $conn->prepare('DELETE FROM matrices_coherencia WHERE perfil_egreso_id = :pid');
     $stmtDelMatrices->bindValue(':pid', $id, PDO::PARAM_INT);
     $stmtDelMatrices->execute();
 
-    // 2) Eliminar el perfil (cascada borrará detalles si existe la tabla auxiliar)
     $perfilModel->eliminar($id);
 
     $conn->commit();
 } catch (Exception $e) {
     if ($conn->inTransaction()) $conn->rollBack();
-    // Podríamos loguear el error; por ahora, seguimos al listado
 }
 
 header('Location: perfiles_egreso.php?carrera_id=' . $carreraId);

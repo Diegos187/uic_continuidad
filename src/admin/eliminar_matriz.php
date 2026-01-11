@@ -42,10 +42,8 @@ if (!$matriz) {
 try {
     if ($tipo_eliminacion === 'completa') {
         // Eliminar toda la matriz y todas sus versiones
-        // 1. Obtener todas las versiones
         $versiones = $versionModel->obtenerVersionesPorMatriz($matriz_id);
 
-        // 2. Para cada versión, eliminar las filas de coherencia
         foreach ($versiones as $version) {
             $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, (int)$version['id']);
             foreach ($filas as $fila) {
@@ -53,12 +51,10 @@ try {
             }
         }
 
-        // 3. Eliminar todas las versiones
         foreach ($versiones as $version) {
             $versionModel->eliminar((int)$version['id']);
         }
 
-        // 4. Eliminar la matriz principal
         $matrizModel->eliminar($matriz_id);
 
         http_response_code(200);
@@ -77,31 +73,25 @@ try {
             exit;
         }
 
-        // 1. Obtener todas las versiones de la matriz
         $versiones = $versionModel->obtenerVersionesPorMatriz($matriz_id);
 
-        // 2. Verificar que hay más de una versión
         if (count($versiones) <= 1) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'No se puede eliminar la única versión. Elimina la matriz completa en su lugar.']);
             exit;
         }
 
-        // 3. Eliminar las filas de la versión actual
         $filas = $matrizCoherenciaModel->obtenerPorMatrizYVersion($matriz_id, $version_id);
         foreach ($filas as $fila) {
             $matrizCoherenciaModel->eliminar((int)$fila['id']);
         }
 
-        // 4. Eliminar la versión
         $versionModel->eliminar($version_id);
 
-        // 5. Obtener la versión anterior (la más reciente después de eliminar la actual)
         $versionesRestantes = $versionModel->obtenerVersionesPorMatriz($matriz_id);
         if (!empty($versionesRestantes)) {
-            $nuevaVersionActual = $versionesRestantes[0]; // La más reciente
+            $nuevaVersionActual = $versionesRestantes[0]; 
 
-            // 6. Actualizar la matriz para establecer la versión anterior como actual
             $updateSql = "UPDATE matrices SET version_id = :version_id WHERE id = :matriz_id";
             $stmt = $conexion->prepare($updateSql);
             $stmt->bindParam(':version_id', $nuevaVersionActual['id'], PDO::PARAM_INT);

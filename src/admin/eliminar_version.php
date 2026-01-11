@@ -28,7 +28,6 @@ try {
     $matriz_id = (int)$_POST['matriz_id'];
     $version_id = (int)$_POST['version_id'];
 
-    // Validar que la versión existe y pertenece a la matriz
     $versionModel = new VersionMatriz($conexion);
     $versionInfo = $conexion->prepare("SELECT * FROM versiones_matriz WHERE id = :id AND matriz_id = :matriz_id");
     $versionInfo->bindParam(':id', $version_id, PDO::PARAM_INT);
@@ -42,7 +41,6 @@ try {
         exit();
     }
 
-    // Verificar si esta es la versión actual
     $matrizModel = new Matriz($conexion);
     $matrizInfo = $conexion->prepare("SELECT version_id FROM matrices WHERE id = :id");
     $matrizInfo->bindParam(':id', $matriz_id, PDO::PARAM_INT);
@@ -50,16 +48,13 @@ try {
     $matriz = $matrizInfo->fetch(PDO::FETCH_ASSOC);
 
     if ($matriz && $matriz['version_id'] == $version_id) {
-        // Si es la versión actual, no permitir eliminar
         http_response_code(409);
         echo json_encode(['success' => false, 'error' => 'No se puede eliminar la versión actual. Restablece otra versión primero.']);
         exit();
     }
 
-    // Iniciar transacción
     $conexion->beginTransaction();
 
-    // 1. Eliminar todas las filas de matrices_coherencia asociadas a esta versión
     $deleteFilas = $conexion->prepare("DELETE FROM matrices_coherencia WHERE matriz_id = :matriz_id AND version_id = :version_id");
     $deleteFilas->bindParam(':matriz_id', $matriz_id, PDO::PARAM_INT);
     $deleteFilas->bindParam(':version_id', $version_id, PDO::PARAM_INT);
@@ -67,7 +62,6 @@ try {
         throw new PDOException('Error al eliminar filas de matrices_coherencia');
     }
 
-    // 2. Eliminar la versión de versiones_matriz
     $deleteVersion = $conexion->prepare("DELETE FROM versiones_matriz WHERE id = :id AND matriz_id = :matriz_id");
     $deleteVersion->bindParam(':id', $version_id, PDO::PARAM_INT);
     $deleteVersion->bindParam(':matriz_id', $matriz_id, PDO::PARAM_INT);
@@ -75,7 +69,6 @@ try {
         throw new PDOException('Error al eliminar la versión');
     }
 
-    // Confirmar transacción
     $conexion->commit();
 
     echo json_encode([

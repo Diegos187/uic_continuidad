@@ -1,5 +1,4 @@
 <?php
-// eliminar_usuario.php
 session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/Usuario.php';
@@ -10,7 +9,6 @@ verificarSesion();
 if (isset($_GET['id'])) {
     $id = $_GET['id'];
     
-    // Evitar auto-eliminación
     if ($id == $_SESSION['usuario_id']) {
         header('Location: usuarios.php');
         exit;

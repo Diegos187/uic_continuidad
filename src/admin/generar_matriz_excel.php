@@ -165,13 +165,11 @@ foreach ($filasMatriz as $ma) {
         }
     }
 
-    // Si no hay dominios (fila sin tributación), crear un grupo único usando campos planos.
     if (empty($domainTree)) {
         $nombreDominioPlano = '';
         if (!empty($ma['dominio'])) { $nombreDominioPlano = $ma['dominio']; }
         elseif (!empty($ma['dominios_lista'])) { $nombreDominioPlano = $ma['dominios_lista']; }
         elseif (!empty($ma['dominio_nombre'])) { $nombreDominioPlano = $ma['dominio_nombre']; }
-        // Estructura plana: una competencia y un resultado, criterios como lista
         $domainTree[-1] = [
             'nombre' => $nombreDominioPlano !== '' ? $nombreDominioPlano : 'Sin dominio',
             'competencias' => []
@@ -200,14 +198,12 @@ foreach ($filasMatriz as $ma) {
     }
 
     $startRow = $fila;
-    // Expandir por Dominio → Competencia → Resultado (una fila por RA)
     foreach ($domainTree as $dId => $dg) {
         $domainStart = $fila;
         $compStarts = [];
         foreach ($dg['competencias'] as $cKey => $comp) {
             $compStart = $fila;
             foreach ($comp['resultados'] as $rKey => $ra) {
-                // Criterios del RA como líneas
                 $critLines = [];
                 foreach ($ra['criterios'] as $clKey => $cl) {
                     $desc = $cl['descripcion'] !== '' ? (' - ' . $cl['descripcion']) : '';
@@ -215,7 +211,6 @@ foreach ($filasMatriz as $ma) {
                 }
                 $critRaw = implode("\n", $critLines);
 
-                // Escribir fila
                 $sheet->setCellValue("A{$fila}", $ma['area_formacion_nombre'] ?? '');
                 $sheet->setCellValue("B{$fila}", $dg['nombre']);
                 $sheet->setCellValue("C{$fila}", $comp['codigo'] . ($comp['descripcion'] !== '' ? (' - ' . $comp['descripcion']) : ''));
@@ -271,26 +266,22 @@ foreach ($filasMatriz as $ma) {
         }
         $domainEnd = $fila - 1;
 
-        // Unir Dominio (B) para todas las filas del dominio
         if ($domainEnd >= $domainStart) {
             $sheet->mergeCells("B{$domainStart}:B{$domainEnd}");
             $sheet->getStyle("B{$domainStart}:B{$domainEnd}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("B{$domainStart}:B{$domainEnd}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
         }
-        // Unir Área de formación (A) también
         if ($domainEnd >= $domainStart) {
             $sheet->mergeCells("A{$domainStart}:A{$domainEnd}");
             $sheet->getStyle("A{$domainStart}:A{$domainEnd}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("A{$domainStart}:A{$domainEnd}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
         }
-        // Unir Competencia (C) por bloque
         foreach ($compStarts as [$cs, $ce]) {
             if ($ce >= $cs) {
                 $sheet->mergeCells("C{$cs}:C{$ce}");
                 $sheet->getStyle("C{$cs}:C{$ce}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
             }
         }
-        // Unir comunes F..K por todo el dominio
         if ($domainEnd >= $domainStart) {
             foreach (['F','G','H','I','J','K'] as $colMerge) {
                 $sheet->mergeCells("{$colMerge}{$domainStart}:{$colMerge}{$domainEnd}");
