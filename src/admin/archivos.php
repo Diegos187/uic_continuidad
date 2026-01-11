@@ -104,7 +104,7 @@ $archivos = $archivo->obtenerTodos();
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     function validateFileSize(input) {
-        const maxSize = 7 * 1024 * 1024; // 7MB en bytes
+        const maxSize = 7 * 1024 * 1024;
         if (input.files[0].size > maxSize) {
             Swal.fire({
                 title: 'Error',
@@ -116,7 +116,6 @@ $archivos = $archivo->obtenerTodos();
     }
     </script>
     <script>
-    // Verificamos si hay parámetros en la URL
     const urlParams = new URLSearchParams(window.location.search);
     const mensaje = urlParams.get('mensaje');
     const error = urlParams.get('error');
