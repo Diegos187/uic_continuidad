@@ -69,7 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             $valores = array_map(function ($v) {
                 return is_string($v) ? trim($v) : $v;
             }, $fila);
-            // Considerar selección de criterios como dato mínimo
             $todosVacios = true;
             foreach (['actividad_curricular_id', 'contenidos', 'bibliografia', 'metodologias', 'estrategias', 'sct_chile', 'criterios_ids'] as $k) {
                 if (!empty($valores[$k])) { $todosVacios = false; break; }
@@ -78,12 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 continue;
             }
 
-            // Tomar perfil de egreso del nivel superior (si viene)
             $perfil_superior = isset($_POST['perfil_id']) ? (int)limpiarDatos($_POST['perfil_id']) : null;
-            // Resolver asignatura de la fila desde actividad curricular seleccionada
             $asignaturaIdFila = isset($fila['actividad_curricular_id']) ? (int)limpiarDatos($fila['actividad_curricular_id']) : null;
 
-            // Selecciones de la UI (checkboxes)
             $competenciasSeleccionadas = isset($fila['competencias_ids']) ? (is_array($fila['competencias_ids']) ? array_map('intval', $fila['competencias_ids']) : [ (int)$fila['competencias_ids'] ]) : [];
             $resultadosSeleccionados = isset($fila['resultados_ids']) ? (is_array($fila['resultados_ids']) ? array_map('intval', $fila['resultados_ids']) : [ (int)$fila['resultados_ids'] ]) : [];
             $criteriosSeleccionados = isset($fila['criterios_ids']) ? (is_array($fila['criterios_ids']) ? array_map('intval', $fila['criterios_ids']) : [ (int)$fila['criterios_ids'] ]) : [];
@@ -93,7 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             if (empty($asignaturaIdFila)) { continue; }
             if (empty($criteriosSeleccionados)) { $error = 'Debe seleccionar al menos un Criterio de Logro por fila.'; break; }
 
-            // Construir textos agregados
             $competenciasTexto = [];
             foreach ($competenciasSeleccionadas as $cid) {
                 $cdata = $competenciaModel->obtenerPorId($cid);
@@ -109,7 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 $crdata = $criterioModel->obtenerPorId($crid);
                 if ($crdata) { $criteriosTexto[] = trim(($crdata['codigo'] ?? '') . ' - ' . ($crdata['descripcion'] ?? '')); }
             }
-            // Recuperar texto de dominio/competencia base desde el detalle de perfil si está presente
             $dominioBase = null;
             $competenciaBase = null;
             if ($perfil_detalle_id) {
@@ -126,7 +120,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                     error_log('Error obteniendo detalle de perfil: ' . $e->getMessage());
                 }
             }
-            // Mantener texto plano sin entidades para evitar mostrar &quot; y &#039; en vistas/exportaciones
             $competenciaAgregada = implode("\n", $competenciasTexto);
             $resultadosAgregados = implode("\n", $resultadosTexto);
             $criteriosAgregados = implode("\n", $criteriosTexto);
@@ -170,7 +163,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 $ids[] = $id;
             }
             if (empty($error)) {
-                // Responder con JSON para AJAX
                 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     header('Content-Type: application/json');
                     http_response_code(200);
@@ -185,7 +177,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
         }
     }
 
-    // Responder con JSON para AJAX si hay error
     if (!empty($error) && $_SERVER['REQUEST_METHOD'] == 'POST') {
         header('Content-Type: application/json');
         http_response_code(400);
@@ -321,10 +312,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                                 </div>
 
                                 <div class="accordion" id="filas-container">
-                                    <!-- Las filas dinámicas se insertan aquí por JS -->
                                 </div>
 
-                                <!-- Botón adicional al final para agregar más filas -->
                                 <div class="d-flex justify-content-end mt-3">
                                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar otra fila</button>
                                 </div>
@@ -363,7 +352,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                                     return ['id' => $a['id'], 'nombre' => $a['nombre']];
                                 }, $asignaturasTodas)); ?>;
 
-        // Inicializar asignaturas en caché
         atributosCache.asignaturas = asignaturasJSON.filter(a => true);
 
         function optionMarkupId(lista, placeholder) {
@@ -482,11 +470,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             habilitarSelectsFila(node);
             actualizarResumenFila(node);
 
-            // Colapsar otras y expandir nueva
             cont.querySelectorAll('.accordion-collapse').forEach(c => c.classList.remove('show'));
             node.querySelector('.accordion-collapse').classList.add('show');
 
-            // Scroll suave al inicio de la nueva fila (header button)
             if (doScroll) {
                 const headerBtn = node.querySelector('.accordion-button');
                 if (headerBtn) {
@@ -508,9 +494,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
 
         function autoResizeTextarea(textarea) {
             if (!textarea) return;
-            // Reset height to auto to get the correct scrollHeight
             textarea.style.height = 'auto';
-            // Set height based on scrollHeight
             textarea.style.height = Math.max(textarea.scrollHeight, 60) + 'px';
         }
 
@@ -542,10 +526,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             const ra = item.querySelector('.campo-resultado')?.value || '';
             const resumen = item.querySelector('.resumen-fila');
 
-            // Truncar a 40 caracteres máximo por parte
             const truncar = (text) => text.length > 40 ? text.substring(0, 40) + '...' : text;
 
-            // Usar dominio y resultado de aprendizaje como las 2 partes del resumen
             const partes = [];
             if (dom) partes.push(truncar(dom));
             if (ra) partes.push(truncar(ra));
@@ -578,7 +560,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 }
             }
 
-            // Actualizar resumen al cambiar valores
             const textos = item.querySelectorAll('input, textarea, select');
             textos.forEach(t => t.addEventListener('blur', () => actualizarResumenFila(item)));
             textos.forEach(t => t.addEventListener('change', () => actualizarResumenFila(item)));
@@ -593,7 +574,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 .then(data => {
                     atributosCache.areasPorPerfil = data.areas || [];
 
-                    // Habilitar selects de área en todas las filas
                     const items = document.querySelectorAll('#filas-container .accordion-item');
                     items.forEach(item => {
                         const selArea = item.querySelector('.campo-area');
@@ -608,10 +588,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
 
         // Reset completo al cambiar Perfil de egreso
         function onPerfilChange() {
-            // Limpiar todas las filas: área, dominios, pestañas, selecciones dependientes
             document.querySelectorAll('#filas-container .accordion-item').forEach(item => {
                 const idx = item.getAttribute('data-index');
-                // Reset área y deshabilitar hasta cargar
                 const selArea = item.querySelector('.campo-area');
                 if (selArea) { selArea.value = ''; selArea.disabled = true; selArea.innerHTML = '<option value="">Seleccione un área</option>'; }
                 // Dominios
@@ -623,13 +601,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 if (tabs) tabs.innerHTML = '';
                 if (tabsContent) tabsContent.innerHTML = '<div class="alert alert-light border" role="alert">Seleccione dominios para ver pestañas por dominio.</div>';
                     if (tabsContent) tabsContent.innerHTML = '';
-                // Desmarcar selecciones
                 item.querySelectorAll('.dominio-checkbox, .competencia-checkbox, .resultado-checkbox, .criterio-check').forEach(cb => { cb.checked = false; });
-                // Limpiar selección de actividad curricular, mantener opciones
                 const selAct = item.querySelector('.campo-actividad');
                 if (selAct) { selAct.value = ''; selAct.disabled = false; }
             });
-            // Cargar áreas del nuevo perfil
             cargarAreasPorPerfil();
         }
 
@@ -682,7 +657,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             }).join('');
             cont.innerHTML = html || '<div class="text-muted">No hay dominios para el área seleccionada.</div>';
 
-            // Evento de cambio para crear pestañas al seleccionar dominios
             cont.querySelectorAll('.dominio-checkbox').forEach(chk => {
                 chk.addEventListener('change', function() {
                     const detalleId = this.getAttribute('data-detalle-id');
@@ -701,7 +675,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
         function addDominioTab(index, detalleId, domId, tabs, tabsContent, descripcionTab = null) {
             const tabId = `tab_${index}_${detalleId}`;
             const paneId = `pane_${index}_${detalleId}`;
-            // Tab header
             const li = document.createElement('li');
             li.className = 'nav-item';
             let label = descripcionTab ? descripcionTab : `Dominio ${detalleId}`;
@@ -709,7 +682,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             if (label.length > maxLen) label = label.substring(0, maxLen - 3) + '...';
             li.innerHTML = `<button class="nav-link" id="${tabId}" data-bs-toggle="tab" data-bs-target="#${paneId}" type="button" role="tab" aria-controls="${paneId}" aria-selected="false">${label}</button>`;
             tabs.appendChild(li);
-            // Tab content pane
             const div = document.createElement('div');
             div.className = 'tab-pane fade p-2';
             div.id = paneId;
@@ -731,7 +703,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             `;
             tabsContent.appendChild(div);
 
-            // Activar nueva pestaña
             const triggerEl = div.previousElementSibling ? li.querySelector('.nav-link') : li.querySelector('.nav-link');
             const tab = new bootstrap.Tab(triggerEl);
             tab.show();
@@ -762,7 +733,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                         const id = String(c.id);
                         let desc = (c.descripcion || '').toString();
                         const code = (c.codigo || '').toString();
-                        // Quitar código duplicado al inicio
                         const esc = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                         const patterns = [new RegExp('^' + esc + '\\s*-\\s*', 'i'), new RegExp('^' + esc + '\\s+', 'i')];
                         patterns.forEach(p => { desc = desc.replace(p, ''); });
@@ -773,7 +743,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                         </div>`;
                     }).join('')) || '<div class="text-muted">Sin competencias.</div>';
 
-                    // Después de competencias, cargar resultados en función de seleccionadas
                     pane.querySelectorAll('.competencia-checkbox').forEach(chk => {
                         chk.addEventListener('change', () => cargarResultados(item, detalleId));
                     });
@@ -791,7 +760,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             const resCont = pane.querySelector(`#resultados-${index}-${detalleId}`);
             resCont.innerHTML = '';
             const critCont = pane.querySelector(`#criterios-${index}-${detalleId}`);
-            // Siempre mostrar placeholder inicial de criterios hasta que se seleccionen resultados
             critCont.innerHTML = '<div class="text-muted">Seleccione resultados de aprendizaje primero.</div>';
             if (compIds.length === 0) {
                 resCont.innerHTML = '<div class="text-muted">Seleccione competencias primero.</div>';
@@ -801,7 +769,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 .then(r => r.json())
                 .then(data => {
                     const resultados = data.resultados || [];
-                    // Construir labels de competencias seleccionadas
                     const competenciasLabels = {};
                     compChecks.forEach(check => {
                         const label = pane.querySelector(`label[for="${check.id}"]`);
@@ -926,7 +893,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 .catch(err => console.error('Error cargando criterios:', err));
         }
 
-        // Helpers de visualización y scroll
         function marcarError(el) { if (!el) return; el.classList.add('campo-error','shake-error'); setTimeout(()=>el.classList.remove('shake-error'), 600); }
         function clearErroresGlobal() { document.querySelectorAll('.campo-error').forEach(el => el.classList.remove('campo-error','shake-error')); }
         function attachClearOnChange(root=document) {
@@ -947,12 +913,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             if (accordionItem) expandirItem(accordionItem);
             const rect = el.getBoundingClientRect();
             const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
-            const offset = 80; // header fijo aprox.
+            const offset = 80;
             const targetY = rect.top + currentScroll - offset;
             window.scrollTo({ top: targetY, behavior: 'smooth' });
         }
 
-        // Validación del formulario antes de submit (con shake + scroll)
         function validarFormulario() {
             const descripcionVersion = document.getElementById('descripcion_version').value.trim();
             const perfilId = document.getElementById('perfil_id').value.trim();
@@ -981,7 +946,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 const areaEl = item.querySelector('.campo-area');
                 const actividadEl = item.querySelector('.campo-actividad');
 
-                // 1) Dominios: al menos uno seleccionado
                 const dominiosSeleccionadosEls = item.querySelectorAll(`#dominios-${isNaN(idx)?'':idx} .dominio-checkbox:checked`);
                 if (dominiosSeleccionadosEls.length === 0) {
                     const domCont = item.querySelector(`#dominios-${isNaN(idx)?'':idx}`);
@@ -990,7 +954,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                     return false;
                 }
 
-                // 2) Por cada dominio: competencia, resultado y criterio al menos uno
                 for (let d = 0; d < dominiosSeleccionadosEls.length; d++) {
                     const detId = dominiosSeleccionadosEls[d].value;
                     const compWrap = item.querySelector(`#competencias-${idx}-${detId}`);
@@ -1019,21 +982,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                     }
                 }
 
-                // 3) Área obligatoria
                 if (!areaEl || !areaEl.value.trim()) {
                     expandirItem(item); marcarError(areaEl); areaEl && areaEl.focus(); scrollToField(areaEl);
                     mostrarToastError(`Fila ${i+1}: Debe seleccionar un Área de formación.`);
                     return false;
                 }
 
-                // 4) Actividad obligatoria
                 if (!actividadEl || !actividadEl.value.trim()) {
                     expandirItem(item); marcarError(actividadEl); actividadEl && actividadEl.focus(); scrollToField(actividadEl);
                     mostrarToastError(`Fila ${i+1}: Debe seleccionar una Actividad Curricular.`);
                     return false;
                 }
 
-                // 5) Textos obligatorios: contenidos, bibliografía, metodologías, estrategias
                 const contenidosEl = item.querySelector(`textarea[name^="filas"][name$="[contenidos]"]`);
                 const bibliografiaEl = item.querySelector(`textarea[name^="filas"][name$="[bibliografia]"]`);
                 const metodologiasEl = item.querySelector(`textarea[name^="filas"][name$="[metodologias]"]`);
@@ -1071,7 +1031,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             return true;
         }
 
-        // Funciones de toast
         function mostrarToastExito(mensaje = 'Nueva versión creada correctamente', duracion = 1500) {
             const container = document.getElementById('toast-container') || crearContenedorToast();
             const toast = document.createElement('div');
@@ -1079,7 +1038,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             toast.textContent = mensaje;
             container.appendChild(toast);
 
-            // Auto-remover después del tiempo especificado
             setTimeout(() => {
                 toast.classList.add('hidden');
                 setTimeout(() => toast.remove(), 300);
@@ -1093,7 +1051,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
             toast.textContent = mensaje;
             container.appendChild(toast);
 
-            // Auto-remover después de 4 segundos
             setTimeout(() => {
                 toast.classList.add('hidden');
                 setTimeout(() => toast.remove(), 300);
@@ -1113,9 +1070,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
 
         // Cargar perfiles al abrir la página
         window.addEventListener('DOMContentLoaded', () => {
-            // No hay campos de resultado tipo textarea en nueva versión
 
-            // Agregar manejador del formulario para AJAX
             const form = document.querySelector('form');
             if (form) {
                 attachClearOnChange(document);
@@ -1148,7 +1103,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 });
             }
 
-            // Agregar automáticamente la primera fila para facilitar el llenado inicial
             try { agregarFila(false); } catch (e) { console.error('No se pudo agregar la fila inicial:', e); }
 
             const perfil_id_select = document.getElementById('perfil_id');
@@ -1163,14 +1117,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                         });
                         perfil_id_select.innerHTML = opts.join('');
                         perfil_id_select.disabled = false;
-                        // Cargar áreas después de elegir perfil con reset completo
                         perfil_id_select.addEventListener('change', onPerfilChange);
                     })
                     .catch(err => console.error('Error cargando perfiles:', err));
             }
         });
 
-        // Nota: validarFormulario definido arriba con shake + scroll
     </script>
 </body>
 
