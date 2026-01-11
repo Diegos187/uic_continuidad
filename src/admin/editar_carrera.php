@@ -1,11 +1,9 @@
 <?php
-// editar_carrera.php
 session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../includes/functions.php';
 
-// Verificar si el usuario está autenticado
 verificarSesion();
 
 $error = '';
@@ -22,7 +20,6 @@ if (!$id) {
 $db = new Database();
 $carrera = new Carrera($db->conectar());
 
-// Si es POST, procesar la actualización
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $datos = [
         'nombre' => limpiarDatos($_POST['nombre']),
@@ -38,7 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Obtener datos actuales de la carrera
 $datos_carrera = $carrera->obtenerPorId($id);
 if (!$datos_carrera) {
     header('Location: carreras.php');

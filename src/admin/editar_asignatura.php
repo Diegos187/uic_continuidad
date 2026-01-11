@@ -5,7 +5,6 @@ require_once '../../src/models/Asignatura.php';
 require_once '../../src/models/Carrera.php';
 require_once '../../includes/functions.php';
 
-// Verificar si el usuario está autenticado
 verificarSesion();
 
 $error = '';
@@ -26,7 +25,6 @@ $carrera = new Carrera($db->conectar());
 // Obtener todas las carreras para el select
 $carreras = $carrera->obtenerTodas();
 
-// Si es POST, procesar la actualización
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $datos = [
         'nombre' => limpiarDatos($_POST['nombre']),
@@ -42,7 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Obtener datos actuales de la asignatura
 $datos_asignatura = $asignatura->obtenerPorId($id);
 if (!$datos_asignatura) {
     header('Location: asignaturas.php');
@@ -71,7 +68,6 @@ if (!$datos_asignatura) {
                     <div class="card-body">
                         <?php
                         if (!empty($error)) echo mostrarMensaje($error, 'error');
-                        // Éxito se mostrará con SweetAlert2
                         ?>
                         
                         <form method="POST">
