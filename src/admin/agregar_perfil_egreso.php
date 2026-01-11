@@ -32,7 +32,7 @@ if (!$carrera) {
     redirigir('carreras.php');
 }
 
-// Cargar todas las áreas globales para permitir reutilización inmediata; la asociación a carrera se hace al guardar
+// Cargar todas las áreas globales para permitir reutilización inmediata
 try {
     $areas = $areaModel->obtenerTodas();
 } catch (Exception $e) {
@@ -46,26 +46,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($nombrePerfil === '') {
         $error = 'Debe ingresar un nombre (versión) para el perfil de egreso.';
     } else {
-        // Validación jerárquica completa (Área -> Dominio -> Competencias -> Resultados -> Criterios)
         $filasValidas = [];
-        $errorArea = false; // falta área cuando hay dominio
-        $errorCampos = false; // faltan competencias
-        $errorCompetencias = false; // código/descripcion incompletos competencia
-        $errorDominio = false; // área seleccionada sin dominio
-        $errorFaltanResultados = false; // falta resultado por competencia
-        $errorResultados = false; // código/descripcion incompletos resultado
-        $errorFaltanCriterios = false; // falta criterio por resultado
-        $errorCriterios = false; // código/descripcion incompletos criterio
+        $errorArea = false; 
+        $errorCampos = false; 
+        $errorCompetencias = false; 
+        $errorDominio = false; 
+        $errorFaltanResultados = false;
+        $errorResultados = false; 
+        $errorFaltanCriterios = false; 
+        $errorCriterios = false;
 
         foreach ($filas as $f) {
             $dom = isset($f['dominio']) ? trim($f['dominio']) : '';
             $areaId = isset($f['area_formacion_id']) ? (int)$f['area_formacion_id'] : 0;
             $competencias = isset($f['competencias']) && is_array($f['competencias']) ? $f['competencias'] : [];
 
-            // Área seleccionada sin dominio
             if ($areaId > 0 && $dom === '') { $errorDominio = true; break; }
 
-            // Validar solo filas con dominio
             if ($dom !== '') {
                 if ($areaId <= 0) { $errorArea = true; break; }
 
@@ -141,13 +138,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $conn->beginTransaction();
 
-                // Guardar el perfil
                 $perfilId = $perfilModel->crear($carreraId, $nombrePerfil);
                 if (!$perfilId) {
                     throw new Exception('No se pudo crear el perfil de egreso.');
                 }
 
-                // Guardar detalles (dominios)
                 foreach ($filasValidas as $fila) {
                     $areaId = $fila['area_formacion_id'];
                     $dominio = $fila['dominio'];
@@ -159,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->bindParam(':perfil_id', $perfilId);
                     $stmt->bindParam(':area_id', $areaId);
                     $stmt->bindParam(':dominio', $dominio);
-                    $stmt->bindParam(':competencia', $dominio); // Mantener compatibilidad
+                    $stmt->bindParam(':competencia', $dominio); 
 
                     if (!$stmt->execute()) {
                         throw new Exception('Error al guardar detalle de perfil.');
@@ -228,19 +223,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $conn->commit();
 
-                // Si es AJAX, devolver JSON
                 if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
                     header('Content-Type: application/json');
                     echo json_encode(['success' => true, 'message' => 'Perfil de egreso creado correctamente', 'redirect' => 'perfiles_egreso.php?carrera_id=' . $carreraId]);
                     exit;
                 }
-                // Si no es AJAX, redirigir
                 header('Location: perfiles_egreso.php?carrera_id=' . $carreraId . '&success=1');
                 exit;
             } catch (Exception $e) {
                 if ($conn->inTransaction()) $conn->rollBack();
                 $error = 'Error al guardar: ' . $e->getMessage();
-                // Si es AJAX, devolver error en JSON
                 if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
                     header('Content-Type: application/json');
                     http_response_code(500);
@@ -293,7 +285,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="accordion" id="filas-container"></div>
 
-                            <!-- Botón adicional al final para agregar dominio -->
                             <div class="d-flex justify-content-end mt-3">
                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarFila()">Agregar Dominio</button>
                             </div>
@@ -452,7 +443,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const node = tmp.firstChild;
             cont.appendChild(node);
 
-            // Actualiza el título del acordeón con "Área - Dominio"
             const areaSelect = node.querySelector('.campo-area');
             const dominioTextarea = node.querySelector('.campo-dominio');
             const titleEl = node.querySelector('.fila-title');
@@ -467,7 +457,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             };
             if (areaSelect) areaSelect.addEventListener('change', updateTitle);
             if (dominioTextarea) dominioTextarea.addEventListener('input', updateTitle);
-            // inicial
             updateTitle();
 
             filaCounter++;
@@ -559,7 +548,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Inserta una fila por defecto
         document.addEventListener('DOMContentLoaded', () => {
             agregarFila();
-            // activar auto-grow
             const initAutoGrow = () => {
                 const autos = document.querySelectorAll('.auto-grow');
                 autos.forEach(el => {
@@ -568,7 +556,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     resize();
                 });
             };
-            // inicial y cuando se agreguen nuevas tarjetas
             initAutoGrow();
             document.addEventListener('click', (e) => {
                 if (e.target && (e.target.matches('[onclick^="agregarCompetencia"]') || e.target.matches('[onclick^="agregarResultado"]') || e.target.matches('[onclick^="agregarCriterio"]'))) {
@@ -600,7 +587,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .shake-error { animation: shake 0.45s ease; }
 
-        /* Animación suave para accordion con transición de altura */
         .accordion-collapse {
             transition: height 0.35s ease, opacity 0.35s ease, margin 0.35s ease, padding 0.35s ease !important;
             overflow: hidden !important;
@@ -614,13 +600,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #e7f1ff;
         }
 
-        /* Botones pequeños */
         .btn-xs {
             font-size: 0.75rem;
             padding: 0.25rem 0.5rem;
         }
 
-        /* Tarjetas de estructura jerárquica */
         .competencia-card {
             border-left: 4px solid #0d6efd;
             background-color: #f8f9fa;
@@ -650,7 +634,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 0.25rem;
         }
 
-        /* Toast flotante */
         .toast-container {
             position: fixed;
             top: 20px;
@@ -707,7 +690,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     </style>
 
-    <!-- Toast container -->
     <div id="toast-container" class="toast-container" style="display:none"></div>
 
     <script>
@@ -749,7 +731,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }, 3500);
         }
 
-        // Interceptar envío del formulario con validación jerárquica
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.querySelector('form');
             if (!form) return;
@@ -794,7 +775,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     const area = item.querySelector('.campo-area')?.value || '';
 
                     if (area && !dominio) { reportError('Debe ingresar el dominio cuando selecciona un área de formación', item, item.querySelector('.campo-dominio')); return; }
-                    if (!dominio) continue; // validar solo filas con dominio
+                    if (!dominio) continue; 
                     if (!area) { reportError('Debe seleccionar un área de formación en cada dominio', item, item.querySelector('.campo-area')); return; }
 
                     const competencias = item.querySelectorAll('.competencia-card');
@@ -850,7 +831,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
 
-        // Mostrar toast si viene del éxito (fallback para navegación no-AJAX)
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
             if (params.has('success')) {
