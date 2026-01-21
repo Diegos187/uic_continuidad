@@ -29,16 +29,38 @@ try {
 
     $conn->beginTransaction();
 
-    $stmtDelMatrices = $conn->prepare('DELETE FROM matrices_coherencia WHERE perfil_egreso_id = :pid');
-    $stmtDelMatrices->bindValue(':pid', $id, PDO::PARAM_INT);
-    $stmtDelMatrices->execute();
+        // Verificar uso del perfil en matrices de coherencia
+        $stmtUso = $conn->prepare('SELECT mc.id AS fila_id, COALESCE(m.nombre, CONCAT("Matriz ", mc.matriz_id)) AS matriz_nombre,
+                                          COALESCE(a.nombre, "") AS asignatura_nombre
+                                   FROM matrices_coherencia mc
+                                   LEFT JOIN matrices m ON m.id = mc.matriz_id
+                                   LEFT JOIN asignaturas a ON a.id = mc.asignatura_id
+                                   WHERE mc.perfil_egreso_id = :pid
+                                   ORDER BY mc.id ASC
+                                   LIMIT 10');
+        $stmtUso->bindValue(':pid', $id, PDO::PARAM_INT);
+        $stmtUso->execute();
+        $usos = $stmtUso->fetchAll(PDO::FETCH_ASSOC);
 
-    $perfilModel->eliminar($id);
+        if (!empty($usos)) {
+            if ($conn->inTransaction()) { $conn->rollBack(); }
+            $detalles = array_map(function($r){
+                $mat = trim($r['matriz_nombre']);
+                $fila = (int)$r['fila_id'];
+                $asig = trim($r['asignatura_nombre']);
+                return $asig !== '' ? "$mat (fila #$fila, $asig)" : "$mat (fila #$fila)";
+            }, $usos);
+            $detalleStr = implode('; ', $detalles);
+            $msg = 'No es posible eliminar el perfil: está vinculado a matrices de coherencia (' . $detalleStr . '). Cree una nueva versión en lugar de eliminar.';
+            header('Location: perfiles_egreso.php?carrera_id=' . $carreraId . '&error=' . urlencode($msg));
+            exit;
+        }
 
-    $conn->commit();
+        // Si no está en uso, eliminar con seguridad
+        $perfilModel->eliminar($id);
+        $conn->commit();
 } catch (Exception $e) {
     if ($conn->inTransaction()) $conn->rollBack();
 }
-
-header('Location: perfiles_egreso.php?carrera_id=' . $carreraId);
-exit;
+    header('Location: perfiles_egreso.php?carrera_id=' . $carreraId);
+    exit;

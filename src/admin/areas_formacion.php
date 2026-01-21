@@ -40,6 +40,10 @@ $areas = $areaModel->obtenerTodas();
             </div>
         </div>
 
+        <?php if (!empty($_GET['error'])): ?>
+            <div class="alert alert-danger"><?php echo htmlspecialchars($_GET['error'], ENT_QUOTES, 'UTF-8'); ?></div>
+        <?php endif; ?>
+
         <table class="table table-striped align-middle">
             <thead>
                 <tr>
@@ -57,7 +61,7 @@ $areas = $areaModel->obtenerTodas();
                         <td><?php echo nl2br(htmlspecialchars($a['descripcion'] ?? '')); ?></td>
                         <td>
                             <a class="btn btn-warning btn-sm" href="editar_area_formacion.php?id=<?php echo $a['id']; ?>">Editar</a>
-                            <a class="btn btn-danger btn-sm" href="eliminar_area_formacion.php?id=<?php echo $a['id']; ?>" onclick="return confirm('¿Eliminar área de formación?');">Eliminar</a>
+                            <a class="btn btn-danger btn-sm" href="eliminar_area_formacion.php?id=<?php echo $a['id']; ?>">Eliminar</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

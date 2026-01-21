@@ -222,6 +222,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 foreach ($detallesExistentes as $detalle) {
                     if (!in_array($detalle['id'], $detallesNuevosIds)) {
+                        // Bloqueo: no eliminar detalle si está usado en matrices o sus criterios están tributados
+                        $stmtUsoMc = $conn->prepare('SELECT mc.id AS fila_id, COALESCE(m.nombre, CONCAT("Matriz ", mc.matriz_id)) AS matriz_nombre,
+                                                           COALESCE(a.nombre, "") AS asignatura_nombre
+                                                    FROM matrices_coherencia mc
+                                                    LEFT JOIN matrices m ON m.id = mc.matriz_id
+                                                    LEFT JOIN asignaturas a ON a.id = mc.asignatura_id
+                                                    WHERE mc.perfil_egreso_detalle_id = :did
+                                                    ORDER BY mc.id ASC
+                                                    LIMIT 10');
+                        $stmtUsoMc->bindValue(':did', (int)$detalle['id'], PDO::PARAM_INT);
+                        $stmtUsoMc->execute();
+                        $usosMc = $stmtUsoMc->fetchAll(PDO::FETCH_ASSOC);
+
+                        $stmtUsoMt = $conn->prepare('SELECT DISTINCT mc.id AS fila_id, COALESCE(m.nombre, CONCAT("Matriz ", mc.matriz_id)) AS matriz_nombre,
+                                                              COALESCE(a.nombre, "") AS asignatura_nombre
+                                                     FROM matriz_tributacion mt
+                                                     JOIN criterios_logro_ref cl ON cl.id = mt.criterio_logro_id
+                                                     JOIN resultados_aprendizaje_ref ra ON ra.id = cl.resultado_aprendizaje_id
+                                                     JOIN competencias_dominio cd ON cd.id = ra.competencia_dominio_id
+                                                     JOIN matrices_coherencia mc ON mc.id = mt.matriz_coherencia_id
+                                                     LEFT JOIN matrices m ON m.id = mc.matriz_id
+                                                     LEFT JOIN asignaturas a ON a.id = mc.asignatura_id
+                                                     WHERE cd.perfil_egreso_detalle_id = :did
+                                                     ORDER BY mc.id ASC
+                                                     LIMIT 10');
+                        $stmtUsoMt->bindValue(':did', (int)$detalle['id'], PDO::PARAM_INT);
+                        $stmtUsoMt->execute();
+                        $usosMt = $stmtUsoMt->fetchAll(PDO::FETCH_ASSOC);
+
+                        if (!empty($usosMc) || !empty($usosMt)) {
+                            $detalles = array_map(function($r){
+                                $mat = trim($r['matriz_nombre']);
+                                $fila = (int)$r['fila_id'];
+                                $asig = trim($r['asignatura_nombre']);
+                                return $asig !== '' ? "$mat (fila #$fila, $asig)" : "$mat (fila #$fila)";
+                            }, array_merge($usosMc, $usosMt));
+                            $detalleStr = implode('; ', $detalles);
+                            throw new Exception('No se puede eliminar un dominio: está vinculado a matrices (' . $detalleStr . '). Cree una nueva versión si desea cambiar la estructura.');
+                        }
+
                         $sql = "DELETE FROM perfiles_egreso_detalle WHERE id = :id";
                         $stmt = $conn->prepare($sql);
                         $stmt->bindParam(':id', $detalle['id']);
@@ -268,6 +308,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     foreach ($competenciasExistentes as $comp) {
                         if (!in_array($comp['id'], $competenciasNuevosIds)) {
+                            // Bloqueo: no eliminar competencia si alguno de sus criterios está tributado
+                            $stmtUsoComp = $conn->prepare('SELECT DISTINCT mc.id AS fila_id, COALESCE(m.nombre, CONCAT("Matriz ", mc.matriz_id)) AS matriz_nombre,
+                                                                   COALESCE(a.nombre, "") AS asignatura_nombre
+                                                            FROM matriz_tributacion mt
+                                                            JOIN criterios_logro_ref cl ON cl.id = mt.criterio_logro_id
+                                                            JOIN resultados_aprendizaje_ref ra ON ra.id = cl.resultado_aprendizaje_id
+                                                            JOIN matrices_coherencia mc ON mc.id = mt.matriz_coherencia_id
+                                                            LEFT JOIN matrices m ON m.id = mc.matriz_id
+                                                            LEFT JOIN asignaturas a ON a.id = mc.asignatura_id
+                                                            WHERE ra.competencia_dominio_id = :cid
+                                                            ORDER BY mc.id ASC
+                                                            LIMIT 10');
+                            $stmtUsoComp->bindValue(':cid', (int)$comp['id'], PDO::PARAM_INT);
+                            $stmtUsoComp->execute();
+                            $usosComp = $stmtUsoComp->fetchAll(PDO::FETCH_ASSOC);
+
+                            if (!empty($usosComp)) {
+                                $detalles = array_map(function($r){
+                                    $mat = trim($r['matriz_nombre']);
+                                    $fila = (int)$r['fila_id'];
+                                    $asig = trim($r['asignatura_nombre']);
+                                    return $asig !== '' ? "$mat (fila #$fila, $asig)" : "$mat (fila #$fila)";
+                                }, $usosComp);
+                                $detalleStr = implode('; ', $detalles);
+                                throw new Exception('No se puede eliminar una competencia: está utilizada en matrices (' . $detalleStr . ').');
+                            }
+
                             $sql = "DELETE FROM competencias_dominio WHERE id = :id";
                             $stmt = $conn->prepare($sql);
                             $stmt->bindParam(':id', $comp['id']);
@@ -302,6 +369,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         foreach ($resultadosExistentes as $ra) {
                             if (!in_array($ra['id'], $resultadosNuevosIds)) {
+                                $stmtUsoRa = $conn->prepare('SELECT DISTINCT mc.id AS fila_id, COALESCE(m.nombre, CONCAT("Matriz ", mc.matriz_id)) AS matriz_nombre,
+                                                                       COALESCE(a.nombre, "") AS asignatura_nombre
+                                                               FROM matriz_tributacion mt
+                                                               JOIN criterios_logro_ref cl ON cl.id = mt.criterio_logro_id
+                                                               JOIN matrices_coherencia mc ON mc.id = mt.matriz_coherencia_id
+                                                               LEFT JOIN matrices m ON m.id = mc.matriz_id
+                                                               LEFT JOIN asignaturas a ON a.id = mc.asignatura_id
+                                                               WHERE cl.resultado_aprendizaje_id = :raid
+                                                               ORDER BY mc.id ASC
+                                                               LIMIT 10');
+                                $stmtUsoRa->bindValue(':raid', (int)$ra['id'], PDO::PARAM_INT);
+                                $stmtUsoRa->execute();
+                                $usosRa = $stmtUsoRa->fetchAll(PDO::FETCH_ASSOC);
+
+                                if (!empty($usosRa)) {
+                                    $detalles = array_map(function($r){
+                                        $mat = trim($r['matriz_nombre']);
+                                        $fila = (int)$r['fila_id'];
+                                        $asig = trim($r['asignatura_nombre']);
+                                        return $asig !== '' ? "$mat (fila #$fila, $asig)" : "$mat (fila #$fila)";
+                                    }, $usosRa);
+                                    $detalleStr = implode('; ', $detalles);
+                                    throw new Exception('No se puede eliminar un resultado de aprendizaje: está utilizado en matrices (' . $detalleStr . ').');
+                                }
+
                                 $sql = "DELETE FROM resultados_aprendizaje_ref WHERE id = :id";
                                 $stmt = $conn->prepare($sql);
                                 $stmt->bindParam(':id', $ra['id']);
@@ -336,6 +428,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             foreach ($criteriosExistentes as $cl) {
                                 if (!in_array($cl['id'], $criteriosNuevosIds)) {
+                                    $stmtUsoCl = $conn->prepare('SELECT DISTINCT mc.id AS fila_id, COALESCE(m.nombre, CONCAT("Matriz ", mc.matriz_id)) AS matriz_nombre,
+                                                                       COALESCE(a.nombre, "") AS asignatura_nombre
+                                                               FROM matriz_tributacion mt
+                                                               JOIN matrices_coherencia mc ON mc.id = mt.matriz_coherencia_id
+                                                               LEFT JOIN matrices m ON m.id = mc.matriz_id
+                                                               LEFT JOIN asignaturas a ON a.id = mc.asignatura_id
+                                                               WHERE mt.criterio_logro_id = :clid
+                                                               ORDER BY mc.id ASC
+                                                               LIMIT 10');
+                                    $stmtUsoCl->bindValue(':clid', (int)$cl['id'], PDO::PARAM_INT);
+                                    $stmtUsoCl->execute();
+                                    $usosCl = $stmtUsoCl->fetchAll(PDO::FETCH_ASSOC);
+
+                                    if (!empty($usosCl)) {
+                                        $detalles = array_map(function($r){
+                                            $mat = trim($r['matriz_nombre']);
+                                            $fila = (int)$r['fila_id'];
+                                            $asig = trim($r['asignatura_nombre']);
+                                            return $asig !== '' ? "$mat (fila #$fila, $asig)" : "$mat (fila #$fila)";
+                                        }, $usosCl);
+                                        $detalleStr = implode('; ', $detalles);
+                                        throw new Exception('No se puede eliminar un criterio de logro utilizado en matrices (' . $detalleStr . ').');
+                                    }
+
                                     $sql = "DELETE FROM criterios_logro_ref WHERE id = :id";
                                     $stmt = $conn->prepare($sql);
                                     $stmt->bindParam(':id', $cl['id']);

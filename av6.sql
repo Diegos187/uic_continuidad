@@ -261,7 +261,7 @@ CREATE TABLE matriz_tributacion (
   CONSTRAINT fk_tributacion_matriz FOREIGN KEY (matriz_coherencia_id) 
     REFERENCES matrices_coherencia (id) ON DELETE CASCADE,
   CONSTRAINT fk_tributacion_criterio FOREIGN KEY (criterio_logro_id) 
-    REFERENCES criterios_logro_ref (id) ON DELETE CASCADE
+    REFERENCES criterios_logro_ref (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 COMMIT;

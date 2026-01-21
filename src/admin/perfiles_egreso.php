@@ -57,6 +57,9 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
             </div>
         </div>
 
+        <?php if (!empty($_GET['error'])): ?>
+            <div class="alert alert-danger"><?php echo htmlspecialchars($_GET['error'], ENT_QUOTES, 'UTF-8'); ?></div>
+        <?php endif; ?>
         <?php if (empty($perfiles)) : ?>
             <div class="alert alert-info">No hay perfiles de egreso registrados para esta carrera.</div>
         <?php else : ?>
@@ -108,12 +111,12 @@ $perfiles = $perfilModel->obtenerPorCarrera($carreraId);
                     }
                     Swal.fire({
                         title: 'Eliminar perfil de egreso',
-                        html: 'Esta acción <b>eliminará también todas las matrices de coherencia</b> asociadas a este perfil. Esta operación no se puede deshacer.',
+                        html: 'Si el perfil está <b>vinculado a matrices de coherencia</b>, no podrá eliminarse. En ese caso, cree una nueva versión o desvincule las matrices primero.',
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonColor: '#d33',
                         cancelButtonColor: '#6c757d',
-                        confirmButtonText: 'Sí, eliminar',
+                        confirmButtonText: 'Continuar',
                         cancelButtonText: 'Cancelar'
                     }).then((result) => {
                         if (result.isConfirmed) {
