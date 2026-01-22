@@ -15,12 +15,12 @@ if ($id > 0) {
     // Verificar usos en perfiles de egreso y asociaciones de carrera
     try {
         // Usos en perfiles de egreso (dominios del área)
-        $stmtPerfiles = $conn->prepare('SELECT c.nombre AS carrera_nombre, p.id AS perfil_id, p.descripcion AS perfil_desc
-                                         FROM perfiles_egreso_detalle ped
-                                         JOIN perfiles_egreso p ON p.id = ped.perfil_egreso_id
-                                         JOIN carreras c ON c.id = p.carrera_id
-                                         WHERE ped.area_formacion_id = :aid
-                                         ORDER BY c.nombre, p.id');
+        $stmtPerfiles = $conn->prepare('SELECT DISTINCT c.nombre AS carrera_nombre, p.id AS perfil_id, p.descripcion AS perfil_desc
+                         FROM perfiles_egreso_detalle ped
+                         JOIN perfiles_egreso p ON p.id = ped.perfil_egreso_id
+                         JOIN carreras c ON c.id = p.carrera_id
+                         WHERE ped.area_formacion_id = :aid
+                         ORDER BY c.nombre, p.id');
         $stmtPerfiles->bindValue(':aid', $id, PDO::PARAM_INT);
         $stmtPerfiles->execute();
         $usosPerfiles = $stmtPerfiles->fetchAll(PDO::FETCH_ASSOC);
@@ -39,18 +39,25 @@ if ($id > 0) {
         if (!empty($usosPerfiles) || !empty($carrerasAsociadas)) {
             $partes = [];
             if (!empty($usosPerfiles)) {
-                $items = array_map(function($r){
+                $seen = [];
+                $items = [];
+                foreach ($usosPerfiles as $r) {
                     $car = trim($r['carrera_nombre']);
                     $pid = (int)$r['perfil_id'];
+                    $key = $car . '#' . $pid;
+                    if (isset($seen[$key])) { continue; }
+                    $seen[$key] = true;
                     $pdesc = trim($r['perfil_desc']);
                     $pdescShort = mb_substr($pdesc, 0, 80);
-                    return "$car en perfil #$pid (" . ($pdescShort !== '' ? $pdescShort : 'sin descripción') . ")";
-                }, $usosPerfiles);
+                    $items[] = "$car en perfil #$pid (" . ($pdescShort !== '' ? $pdescShort : 'sin descripción') . ")";
+                }
                 // Evitar mensajes extremadamente largos
-                $items = array_slice($items, 0, 10);
-                $partes[] = 'usada por ' . implode('; ', $items);
-                if (count($usosPerfiles) > 10) {
-                    $partes[] = '(+' . (count($usosPerfiles) - 10) . ' más)';
+                if (count($items) > 10) {
+                    $extra = count($items) - 10;
+                    $items = array_slice($items, 0, 10);
+                    $partes[] = 'usada por ' . implode('; ', $items) . ' (+' . $extra . ' más)';
+                } else {
+                    $partes[] = 'usada por ' . implode('; ', $items);
                 }
             }
             // Carreras asociadas sin perfil

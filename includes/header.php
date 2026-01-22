@@ -5,8 +5,8 @@ if (!isset($_SESSION)) {
 ?>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container">
-        <a class="navbar-brand" href="/src/admin/dashboard.php">
-            <img src="/public/img/logo_utem.png" alt="" class="img-fluid" style="max-width: 50px; max-height: 50px;"> Sistema de Gestión de Mallas Curriculares
+        <a class="navbar-brand" href="../../src/admin/dashboard.php">
+            <img src="../../public/img/utem_logo_blanco_1.png" alt="" class="img-fluid" style="max-width: 50px; max-height: 50px;">  Sistema de Gestión de Mallas Curriculares
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
@@ -43,7 +43,7 @@ if (!isset($_SESSION)) {
                                 cancelButtonText: 'Cancelar'
                             }).then((result) => {
                                 if (result.isConfirmed) {
-                                    window.location.href = '/src/auth/logout.php';
+                                    window.location.href = '../../src/auth/logout.php';
                                 }
                             });
                         });

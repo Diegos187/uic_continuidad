@@ -2,6 +2,7 @@
 session_start();
 require_once '../../config/database.php';
 require_once '../../src/models/Carrera.php';
+require_once '../../src/models/Asignatura.php';
 require_once '../../includes/functions.php';
 
 verificarSesion();
@@ -18,7 +19,8 @@ if (!$id) {
 }
 
 $db = new Database();
-$carrera = new Carrera($db->conectar());
+$conn = $db->conectar();
+$carrera = new Carrera($conn);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $datos = [
@@ -28,10 +30,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         'anio' => (int)limpiarDatos($_POST['anio'])
     ];
     
-    if ($carrera->actualizar($id, $datos)) {
-        $success = "Carrera actualizada exitosamente.";
-    } else {
-        $error = "Error al actualizar la carrera.";
+    try {
+        $stmt = $conn->prepare('SELECT id, nombre, semestre FROM asignaturas WHERE carrera_id = :cid AND semestre > :lim ORDER BY semestre ASC, nombre ASC');
+        $stmt->bindValue(':cid', $id, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', (int)$datos['duracion_semestres'], PDO::PARAM_INT);
+        $stmt->execute();
+        $asignaturasFuera = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($asignaturasFuera)) {
+            $items = array_map(function($r){
+                $nom = trim($r['nombre'] ?? '');
+                $sem = (int)($r['semestre'] ?? 0);
+                return ($nom !== '' ? $nom : 'Asignatura #' . (int)$r['id']) . ' (semestre ' . $sem . ')';
+            }, $asignaturasFuera);
+            if (count($items) > 10) {
+                $extra = count($items) - 10;
+                $items = array_slice($items, 0, 10);
+                $msgDetalle = implode('; ', $items) . ' (+' . $extra . ' más)';
+            } else {
+                $msgDetalle = implode('; ', $items);
+            }
+            $error = 'No es posible reducir la duración a ' . (int)$datos['duracion_semestres'] . ' semestres: existen asignaturas en semestres superiores. ' .
+                     'Mueva esas asignaturas a semestres ≤ ' . (int)$datos['duracion_semestres'] . ' antes de actualizar. Afectadas: ' . $msgDetalle . '.';
+        }
+    } catch (Exception $e) {
+        $error = 'Error validando asignaturas: ' . $e->getMessage();
+    }
+
+    if (empty($error)) {
+        if ($carrera->actualizar($id, $datos)) {
+            $success = "Carrera actualizada exitosamente.";
+        } else {
+            $error = "Error al actualizar la carrera.";
+        }
     }
 }
 

@@ -48,7 +48,7 @@ try {
                 $mat = trim($r['matriz_nombre']);
                 $fila = (int)$r['fila_id'];
                 $asig = trim($r['asignatura_nombre']);
-                return $asig !== '' ? "$mat (fila #$fila, $asig)" : "$mat (fila #$fila)";
+                return $asig !== '' ? "$mat ($fila, $asig)" : "$mat (fila #$fila)";
             }, $usos);
             $detalleStr = implode('; ', $detalles);
             $msg = 'No es posible eliminar el perfil: está vinculado a matrices de coherencia (' . $detalleStr . '). Cree una nueva versión en lugar de eliminar.';

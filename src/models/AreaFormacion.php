@@ -11,7 +11,7 @@ class AreaFormacion
 
     public function obtenerTodas()
     {
-        $sql = "SELECT id, nombre, descripcion, created_at FROM {$this->tabla} ORDER BY nombre";
+        $sql = "SELECT id, nombre, descripcion, created_at FROM {$this->tabla} ORDER BY id ASC";
         $stmt = $this->conexion->query($sql);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

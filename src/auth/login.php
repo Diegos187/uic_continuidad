@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="row justify-content-center">
             <div class="col-md-6">
                 <div class="card">
-                    <img src="/public/img/Logo-utem-sus.png" alt="">
+                    <img src="../../public/img/Logo-utem-sus.png" alt="">
                     <div class="card-header text-center">Iniciar Sesión</div>
                     <div class="card-body">
                         <?php if (isset($error)): ?>

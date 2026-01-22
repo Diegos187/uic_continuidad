@@ -77,26 +77,57 @@ $asignaturas = $asignatura->obtenerTodas();
                     e.preventDefault();
                     const url = this.getAttribute('data-url') || this.getAttribute('href');
                     if (!url) return;
-                    if (typeof Swal === 'undefined') {
-                        if (confirm('Al eliminar esta actividad curricular se eliminarán también sus relaciones asociadas (matrices, referencias). ¿Desea continuar?')) {
-                            window.location.href = url;
-                        }
-                        return;
-                    }
-                    Swal.fire({
-                        title: 'Eliminar actividad curricular',
-                        html: 'Esta acción <b>eliminará la actividad curricular</b> y sus asociaciones relevantes. No se puede deshacer.',
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonColor: '#d33',
-                        cancelButtonColor: '#6c757d',
-                        confirmButtonText: 'Sí, eliminar',
-                        cancelButtonText: 'Cancelar'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            window.location.href = url;
-                        }
-                    });
+                    const previewUrl = url + (url.includes('?') ? '&' : '?') + 'preview=1';
+
+                    // Consultar usos antes de confirmar
+                    fetch(previewUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                        .then(r => r.json())
+                        .then(data => {
+                            const inUse = !!(data && data.inUse);
+                            let htmlMsg = 'Esta acción <b>eliminará la actividad curricular</b> y sus asociaciones relevantes. No se puede deshacer.';
+                            if (inUse) {
+                                const items = (data.usos || []).map(u => `${u.matriz_nombre} (fila #${u.fila_id})`);
+                                const list = items.slice(0, 10).join('; ');
+                                const extra = Math.max(0, items.length - 10);
+                                htmlMsg = `Esta actividad curricular está utilizada en: <br><b>${list}${extra>0? ' (+'+extra+' más)':''}</b><br><br>` + htmlMsg;
+                            }
+                            if (typeof Swal === 'undefined') {
+                                const proceed = confirm(inUse ? ('Usada en ' + (items ? items.join(', ') : '') + '.\n' + '¿Eliminar de todos modos?') : '¿Eliminar actividad curricular?');
+                                if (proceed) window.location.href = url;
+                                return;
+                            }
+                            Swal.fire({
+                                title: 'Eliminar actividad curricular',
+                                html: htmlMsg,
+                                icon: inUse ? 'info' : 'warning',
+                                showCancelButton: true,
+                                confirmButtonColor: '#d33',
+                                cancelButtonColor: '#6c757d',
+                                confirmButtonText: inUse ? 'Sí, eliminar igualmente' : 'Sí, eliminar',
+                                cancelButtonText: 'Cancelar'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    window.location.href = url;
+                                }
+                            });
+                        }).catch(() => {
+                            if (typeof Swal === 'undefined') {
+                                if (confirm('¿Eliminar actividad curricular?')) window.location.href = url;
+                                return;
+                            }
+                            Swal.fire({
+                                title: 'Eliminar actividad curricular',
+                                html: 'Esta acción <b>eliminará la actividad curricular</b> y sus asociaciones relevantes. No se puede deshacer.',
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonColor: '#d33',
+                                cancelButtonColor: '#6c757d',
+                                confirmButtonText: 'Sí, eliminar',
+                                cancelButtonText: 'Cancelar'
+                            }).then((result) => {
+                                if (result.isConfirmed) window.location.href = url;
+                            });
+                        });
                 });
             });
         });

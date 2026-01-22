@@ -49,7 +49,7 @@ $areas = $areaModel->obtenerTodas();
                 <tr>
                     <th style="width: 80px;">ID</th>
                     <th style="width: 260px;">Nombre</th>
-                    <th class="descripcion-col">Descripción</th>
+                    <th class="descripcion-col">Descripción (Opcional)</th>
                     <th style="width: 240px;">Acciones</th>
                 </tr>
             </thead>

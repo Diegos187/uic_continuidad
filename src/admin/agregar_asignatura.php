@@ -24,24 +24,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $semestre = (int)limpiarDatos($_POST['semestre']);
     $duracion_semanas = (int)limpiarDatos($_POST['duracion_semanas']);
     
-    $asignatura = new Asignatura($db->conectar());
-    
-    $datos = [
-        'nombre' => $nombre,
-        'carrera_id' => $carrera_id,
-        'semestre' => $semestre,
-        'duracion_semanas' => $duracion_semanas
-    ];
-    
-    $resultado = $asignatura->crear($datos);
-    if ($resultado) {
-        $success = "Actividad curricular creada exitosamente.";
-        $nombre = '';
-        $carrera_id = 0;
-        $semestre = 0;
-        $duracion_semanas = 0;
+    $carreraInfo = $carreraModel->obtenerPorId($carrera_id);
+    if (!$carreraInfo) {
+        $error = "Debe seleccionar una carrera válida.";
     } else {
-        $error = "Error al crear la actividad curricular.";
+        $maxSemestres = (int)($carreraInfo['duracion_semestres'] ?? 0);
+        if ($semestre < 1 || $semestre > $maxSemestres) {
+            $error = "El semestre seleccionado excede la duración de la carrera (máximo ${maxSemestres}).";
+        }
+    }
+
+    if (empty($error)) {
+        $asignatura = new Asignatura($db->conectar());
+        $datos = [
+            'nombre' => $nombre,
+            'carrera_id' => $carrera_id,
+            'semestre' => $semestre,
+            'duracion_semanas' => $duracion_semanas
+        ];
+        $resultado = $asignatura->crear($datos);
+        if ($resultado) {
+            $success = "Actividad curricular creada exitosamente.";
+            $nombre = '';
+            $carrera_id = 0;
+            $semestre = 0;
+            $duracion_semanas = 0;
+        } else {
+            $error = "Error al crear la actividad curricular.";
+        }
     }
 }
 ?>
@@ -120,5 +130,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <?php include '../../includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const CARRERAS = <?php echo json_encode($carreras); ?>;
+        function getMaxSemestres(carreraId) {
+            const c = CARRERAS.find(x => String(x.id) === String(carreraId));
+            return c ? parseInt(c.duracion_semestres || 12, 10) : 12;
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const selCarrera = document.getElementById('carrera_id');
+            const inputSem = document.getElementById('semestre');
+            function applyMax() {
+                const max = getMaxSemestres(selCarrera.value);
+                inputSem.setAttribute('max', max);
+                if (parseInt(inputSem.value || '0', 10) > max) {
+                    inputSem.value = String(max);
+                }
+            }
+            selCarrera.addEventListener('change', applyMax);
+            applyMax();
+        });
+    </script>
 </body>
 </html>

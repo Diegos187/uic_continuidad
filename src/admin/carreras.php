@@ -80,14 +80,14 @@ $carreras = $carrera->obtenerTodas();
                     const url = this.getAttribute('data-url') || this.getAttribute('href');
                     if (!url) return;
                     if (typeof Swal === 'undefined') {
-                        if (confirm('Al eliminar esta carrera se eliminarán también todas las asignaturas asociadas. ¿Desea continuar?')) {
+                        if (confirm('Al eliminar esta carrera se eliminarán también todas las asignaturas, perfiles de egreso y matrices asociadas. ¿Desea continuar?')) {
                             window.location.href = url;
                         }
                         return;
                     }
                     Swal.fire({
                         title: 'Eliminar carrera',
-                        html: 'Esta acción <b>eliminará también todas las asignaturas</b> asociadas a esta carrera. Esta operación no se puede deshacer.',
+                        html: 'Esta acción <b>eliminará también todas las asignaturas, perfiles de egreso y matrices asociadas</b> a esta carrera. Esta operación no se puede deshacer.',
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonColor: '#d33',

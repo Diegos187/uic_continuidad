@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <label for="anio" class="form-label">Año</label>
                                 <input type="number" class="form-control" id="anio" name="anio"
                                     value="<?php echo $anio ?? '2020'; ?>"
-                                    min="2000" max="2999" required>
+                                    min="2020" max="2999" required>
                             </div>
                             
                             <div class="d-grid gap-2">
