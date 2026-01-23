@@ -44,7 +44,8 @@ if (!$matrizActual) {
 
 // Obtener listas base
 $carreras = $carrera->obtenerTodas();
-$asignaturasTodas = $asignatura->obtenerTodas();
+// Cargar solo las asignaturas correspondientes a la carrera de la matriz
+$asignaturasTodas = $asignatura->obtenerPorCarrera($carrera_id);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
     $descripcion_version = isset($_POST['descripcion_version']) ? trim(limpiarDatos($_POST['descripcion_version'])) : '';
